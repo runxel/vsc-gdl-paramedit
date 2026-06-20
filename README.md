@@ -14,7 +14,15 @@ durch den Editor nicht beschädigt werden.
 
 Getestet gegen **3698** echte ParamSection-XML-Dateien (`npm test`).
 
-## Ausprobieren
+## Installieren
+
+Fertiges Extension-Paket: **[`dist/gdl-parameter-editor-0.5.7.vsix`](dist/)**
+(oder über die [Releases-Seite](https://github.com/gdl-joe/vscode-gdl-parameter-editor/releases/latest)).
+
+In VSCode: Extensions → `…` → **„Aus VSIX installieren…"** → die `.vsix` wählen →
+Fenster neu laden.
+
+## Ausprobieren (aus dem Quellcode)
 
 1. Diesen Ordner in VSCode öffnen.
 2. **F5** → „Extension starten (Development Host)“.
