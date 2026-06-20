@@ -1,0 +1,245 @@
+'use strict';
+
+const vscode = require('vscode');
+const fs = require('fs');
+const P = require('./src/paramlist');
+
+const VIEW_TYPE = 'gdl.parameterEditor';
+
+function activate(context) {
+	context.subscriptions.push(
+		vscode.window.registerCustomEditorProvider(
+			VIEW_TYPE,
+			new ParamEditorProvider(context),
+			{
+				webviewOptions: { retainContextWhenHidden: true },
+				supportsMultipleEditorsPerDocument: false,
+			}
+		)
+	);
+}
+
+class ParamEditorProvider {
+	constructor(context) {
+		this.context = context;
+	}
+
+	/**
+	 * @param {vscode.TextDocument} document
+	 * @param {vscode.WebviewPanel} panel
+	 */
+	async resolveCustomTextEditor(document, panel, _token) {
+		const webview = panel.webview;
+		webview.options = {
+			enableScripts: true,
+			localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')],
+		};
+		webview.html = this.getHtml(webview);
+
+		// Text, den wir zuletzt selbst geschrieben haben — zum Erkennen eigener Edits.
+		let lastWritten = null;
+
+		const render = () => {
+			let params = [];
+			let error = null;
+			try {
+				params = P.getParameters(P.parse(document.getText())).map(toView);
+			} catch (e) {
+				error = e.message;
+			}
+			webview.postMessage({ type: 'render', params, error });
+		};
+
+		const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
+			if (e.document.uri.toString() !== document.uri.toString()) return;
+			// Eigene Edits nicht erneut rendern (Fokus/Scroll bleiben erhalten).
+			if (document.getText() === lastWritten) return;
+			render();
+		});
+		panel.onDidDispose(() => changeSub.dispose());
+
+		// Felder, nach denen die Liste neu gerendert werden muss (Identität/Optik
+		// ändert sich). Value/Description nicht — das Eingabefeld zeigt es bereits.
+		const RERENDER = ['move', 'reorder', 'add', 'delete', 'type', 'name', 'fix', 'flag',
+			'arrayAddRow', 'arrayDelRow', 'arrayAddCol', 'arrayDelCol', 'arrayCreate', 'arrayRemove'];
+
+		webview.onDidReceiveMessage(async (msg) => {
+			if (msg.type === 'ready') { render(); return; }
+			if (msg.type !== 'edit') return;
+			try {
+				const newText = await this.applyEdit(document, msg);
+				if (newText !== null) lastWritten = newText;
+				if (RERENDER.includes(msg.field)) render();
+			} catch (e) {
+				// Validierungs-/Editierfehler: kurze Meldung + UI auf Wahrheit zurücksetzen.
+				webview.postMessage({ type: 'notice', message: String(e.message || e) });
+				render();
+			}
+		});
+	}
+
+	/**
+	 * Wendet eine Änderung an und schreibt das (round-trip-sichere) Ergebnis als
+	 * ein WorkspaceEdit zurück. Gibt den neuen Text zurück (oder null).
+	 */
+	async applyEdit(document, msg) {
+		const doc = P.parse(document.getText());
+		const findTarget = () => P.getParameters(doc).find((p) => p.name === msg.name);
+
+		switch (msg.field) {
+			case 'value': { const t = findTarget(); if (!t) return null; P.setValueByType(t.node, t.type, msg.value); break; }
+			case 'description': { const t = findTarget(); if (!t) return null; P.setDescription(t.node, msg.value); break; }
+			case 'name': {
+				const t = findTarget(); if (!t) return null;
+				const nm = String(msg.value || '').trim();
+				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '". Erlaubt: Buchstaben, Ziffern, Unterstrich (Beginn mit Buchstabe oder _).');
+				if (P.nameExists(doc, nm, t.node)) throw new Error('Der Name „' + nm + '" existiert bereits. Namen müssen eindeutig sein.');
+				P.setName(t.node, nm); break;
+			}
+			case 'type': { const t = findTarget(); if (!t) return null; P.setType(t.node, msg.value); break; }
+			case 'fix': { const t = findTarget(); if (!t) return null; P.setFix(t.node, !!msg.value); break; }
+			case 'flag': { const t = findTarget(); if (!t) return null; P.setFlag(t.node, msg.flag, !!msg.value); break; }
+			case 'move': P.moveParam(doc, msg.name, msg.delta); break;
+			case 'reorder': P.reorderParams(doc, msg.names || []); break;
+			case 'delete': P.deleteParam(doc, msg.name); break;
+			case 'add': {
+				const nm = String(msg.newName || '').trim();
+				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '".');
+				if (P.nameExists(doc, nm, null)) throw new Error('Der Name „' + nm + '" existiert bereits.');
+				P.addParam(doc, { type: msg.paramType, name: nm, afterName: msg.afterName || null });
+				break;
+			}
+			case 'arraycell': { const t = findTarget(); if (!t) return null; P.setArrayCell(t.node, msg.row, msg.col, msg.value); break; }
+			case 'arrayAddRow': { const t = findTarget(); if (!t) return null; P.addArrayRow(t.node); break; }
+			case 'arrayDelRow': { const t = findTarget(); if (!t) return null; P.removeArrayRow(t.node, msg.row); break; }
+			case 'arrayAddCol': { const t = findTarget(); if (!t) return null; P.addArrayCol(t.node); break; }
+			case 'arrayDelCol': { const t = findTarget(); if (!t) return null; P.removeArrayCol(t.node, msg.col); break; }
+			case 'arrayCreate': { const t = findTarget(); if (!t) return null; P.createArray(t.node, msg.rows || 1, msg.cols || 0); break; }
+			case 'arrayRemove': { const t = findTarget(); if (!t) return null; P.removeArray(t.node); break; }
+			default: return null;
+		}
+
+		const newText = P.serialize(doc);
+		if (newText === document.getText()) return null;
+
+		const edit = new vscode.WorkspaceEdit();
+		const fullRange = new vscode.Range(
+			document.positionAt(0),
+			document.positionAt(document.getText().length)
+		);
+		edit.replace(document.uri, fullRange, newText);
+		await vscode.workspace.applyEdit(edit);
+		return newText;
+	}
+
+	getHtml(webview) {
+		const nonce = makeNonce();
+		const css = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.css')
+		);
+		const js = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.js')
+		);
+		const csp =
+			`default-src 'none'; ` +
+			`img-src ${webview.cspSource}; ` +
+			`style-src ${webview.cspSource} 'unsafe-inline'; ` +
+			`script-src 'nonce-${nonce}';`;
+		return `<!DOCTYPE html>
+<html lang="de">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="Content-Security-Policy" content="${csp}">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link href="${css}" rel="stylesheet">
+	<title>GDL Parameter Editor</title>
+</head>
+<body>
+	<div id="toolbar">
+		${this.logoTags(webview)}
+		<input id="filter" type="text" placeholder="Filtern (Name oder Beschreibung)…">
+		<button id="addBtn" title="Neuen Parameter am Ende hinzufügen">+ Parameter</button>
+		<button id="addGroupBtn" title="Neue Gruppen-Überschrift (Title) hinzufügen">+ Gruppe</button>
+		<button id="addSeparatorBtn" title="Neuen Trennbalken (Separator) hinzufügen">+ Trennlinie</button>
+		<span id="count" class="muted"></span>
+	</div>
+	<div id="error" class="error" hidden></div>
+	<div id="notice" class="notice" hidden></div>
+	<div id="list"></div>
+	<script nonce="${nonce}" src="${js}"></script>
+</body>
+</html>`;
+	}
+
+	/**
+	 * Bindet das b-prisma-Logo ein (themenabhängig hell/dunkel). Das SVG wird
+	 * INLINE eingebettet (kein externes <img>) — so gibt es keine CSP-/URI-/
+	 * Lade-Probleme. PNG/WebP werden weiterhin als data-URI eingebettet.
+	 */
+	logoTags(_webview) {
+		const readLogo = (variant) => {
+			const names = ['logo-' + variant, variant + '-logo', 'b-prisma-' + variant, 'logo-' + variant + 'mode'];
+			for (const base of names) {
+				for (const ext of ['svg', 'png', 'webp']) {
+					const file = vscode.Uri.joinPath(this.context.extensionUri, 'media', base + '.' + ext).fsPath;
+					try {
+						if (ext === 'svg') {
+							let svg = fs.readFileSync(file, 'utf8');
+							// XML-Deklaration + DOCTYPE entfernen, damit es inline gültig ist
+							svg = svg.replace(/<\?xml[\s\S]*?\?>/i, '').replace(/<!DOCTYPE[\s\S]*?>/i, '').trim();
+							return `<span class="logo logo-${variant}" title="b-prisma">${svg}</span>`;
+						}
+						const b64 = fs.readFileSync(file).toString('base64');
+						const mime = ext === 'png' ? 'image/png' : 'image/webp';
+						return `<img class="logo logo-${variant}" alt="b-prisma" src="data:${mime};base64,${b64}">`;
+					} catch (_) { /* nächste Variante */ }
+				}
+			}
+			return '';
+		};
+		return readLogo('light') + readLogo('dark');
+	}
+}
+
+/** Reduziert einen Parameter auf ein serialisierbares View-DTO (ohne Baum-Knoten). */
+function toView(p) {
+	return {
+		type: p.type,
+		name: p.name,
+		isTitle: p.isTitle,
+		isSeparator: p.isSeparator,
+		isValue: p.isValue,
+		valueKind: p.valueKind,
+		fix: p.fix,
+		flags: p.flags,
+		hidden: p.flags.includes('ParFlg_Hidden'),
+		child: p.flags.includes('ParFlg_Child'),
+		bold: p.flags.includes('ParFlg_BoldName'),
+		unique: p.flags.includes('ParFlg_Unique'),
+		description: p.description,
+		valueText: p.valueText,
+		isArray: !!p.array,
+		array: p.array
+			? {
+					first: p.array.first,
+					second: p.array.second,
+					cells: p.array.values.map((v) => ({
+						row: v.row,
+						col: v.col,
+						value: p.valueKind === 'string' ? P.unescapeGdlStr(P.stripQuotes(v.value)) : v.value,
+					})),
+				}
+			: null,
+	};
+}
+
+function makeNonce() {
+	let s = '';
+	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 32; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+	return s;
+}
+
+function deactivate() {}
+
+module.exports = { activate, deactivate };

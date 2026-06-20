@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Build-Artefakte (Extension-Pakete werden als GitHub-Release bereitgestellt)
+*.vsix
+
+# Internes Arbeits-/Statusdokument (nicht öffentlich)
+SESSION_STATUS.md

@@ -1,0 +1,281 @@
+:root {
+	color-scheme: light dark;
+}
+
+body {
+	margin: 0;
+	padding: 0;
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+}
+
+#toolbar {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	background: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+#filter {
+	flex: 0 0 320px;
+	max-width: 50%;
+	padding: 4px 8px;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 3px;
+}
+
+.muted { color: var(--vscode-descriptionForeground); }
+
+.error {
+	margin: 8px 12px;
+	padding: 8px 12px;
+	border-radius: 4px;
+	color: var(--vscode-inputValidation-errorForeground, #fff);
+	background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
+	border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100);
+}
+
+.notice {
+	margin: 8px 12px;
+	padding: 8px 12px;
+	border-radius: 4px;
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-warningBackground, rgba(190, 150, 0, 0.25));
+	border: 1px solid var(--vscode-inputValidation-warningBorder, #b8a30a);
+}
+
+#list { padding: 4px 0 24px; }
+
+.row {
+	display: grid;
+	grid-template-columns: 118px 116px 188px 1fr 178px auto;
+	align-items: center;
+	gap: 8px;
+	padding: 3px 12px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.row:hover { background: var(--vscode-list-hoverBackground); }
+
+.row.child .pname { margin-left: 14px; }
+.row.hidden { opacity: 0.6; }
+.row.drop-target { box-shadow: inset 0 2px 0 0 var(--vscode-focusBorder); }
+
+.row.title {
+	grid-template-columns: 118px 150px 1fr;
+	margin-top: 10px;
+	padding: 6px 12px;
+	background: var(--vscode-sideBarSectionHeader-background, rgba(127,127,127,0.12));
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+/* Trennbalken: dezenter als ein Titel, mit horizontaler Linie statt Überschrift. */
+.row.separator {
+	grid-template-columns: 118px 150px 1fr;
+	margin: 4px 0;
+	padding: 4px 12px;
+	align-items: center;
+}
+.separator-line {
+	display: block;
+	height: 0;
+	border-top: 2px dashed var(--vscode-panel-border, rgba(128,128,128,0.5));
+	opacity: 0.8;
+}
+
+.drag-handle {
+	cursor: grab;
+	opacity: 0.4;
+	user-select: none;
+	padding: 0 2px;
+}
+.row:hover .drag-handle { opacity: 0.8; }
+.drag-handle:active { cursor: grabbing; }
+
+/* b-prisma-Logo (themenabhängig). Feste Maße, da die SVGs width/height="100%"
+   haben und sonst auf 0 Breite kollabieren könnten. */
+.logo {
+	height: 24px;
+	width: 24px;
+	margin-right: 8px;
+	flex: 0 0 auto;
+	line-height: 0;
+}
+.logo svg, .logo img { width: 24px; height: 24px; display: block; }
+/* Standard (helles/unbekanntes Theme): helles Logo zeigen, dunkles verstecken. */
+.logo-dark { display: none; }
+.logo-light { display: inline-block; }
+/* Dunkles Theme / High-Contrast-Dunkel: dunkles Logo zeigen. */
+body.vscode-dark .logo-light,
+body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-light { display: none; }
+body.vscode-dark .logo-dark,
+body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-dark { display: inline-block; }
+
+/* Steuer-Buttons (verschieben/löschen) */
+.controls { display: flex; gap: 2px; }
+.icon-btn, #addBtn, #addGroupBtn, #addSeparatorBtn, .array-toggle, .chip {
+	font: inherit;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 3px;
+}
+.icon-btn { padding: 1px 4px; font-size: 0.85em; opacity: 0.55; }
+.row:hover .icon-btn { opacity: 1; }
+.icon-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
+
+#addBtn, #addGroupBtn, #addSeparatorBtn {
+	padding: 3px 10px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+#addBtn:hover, #addGroupBtn:hover, #addSeparatorBtn:hover { background: var(--vscode-button-hoverBackground); }
+
+.type-select {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 2px 4px;
+	font-size: 0.85em;
+	color: var(--vscode-dropdown-foreground);
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 3px;
+}
+.title-text {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 3px 6px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 3px;
+}
+.row.title:hover .title-text { border-color: var(--vscode-input-border, rgba(128,128,128,0.35)); background: var(--vscode-input-background); }
+.title-text:focus { outline: none; border-color: var(--vscode-focusBorder); background: var(--vscode-input-background); }
+
+.badge {
+	display: inline-block;
+	padding: 1px 6px;
+	font-size: 0.78em;
+	border-radius: 3px;
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.pname { font-family: var(--vscode-editor-font-family, monospace); }
+.pname.bold { font-weight: 700; }
+
+/* Dictionary-Wert: nicht editierbar, nur Hinweis-Badge. */
+.dict-badge {
+	display: inline-block;
+	padding: 1px 8px;
+	font-size: 0.78em;
+	font-style: italic;
+	border-radius: 3px;
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-badge-background, rgba(127, 127, 127, 0.18));
+	opacity: 0.8;
+}
+
+.desc, .val, .pname {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 3px 6px;
+	color: var(--vscode-input-foreground);
+	border-radius: 3px;
+	transition: border-color 0.1s, background 0.1s;
+	/* dezent bis Hover/Fokus, damit Editierbarkeit erkennbar wird */
+	background: transparent;
+	border: 1px solid transparent;
+}
+.row:hover .desc, .row:hover .val, .row:hover .pname {
+	border-color: var(--vscode-input-border, rgba(128, 128, 128, 0.35));
+	background: var(--vscode-input-background);
+}
+.desc:focus, .val:focus, .pname:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-input-background);
+}
+.val.number, .val.index { font-family: var(--vscode-editor-font-family, monospace); text-align: right; }
+
+/* Ungültige Eingabe (Name mit unerlaubten Zeichen, keine Zahl): rot markiert. */
+.desc.invalid, .val.invalid, .pname.invalid,
+.row:hover .pname.invalid, .row:hover .val.invalid {
+	border-color: var(--vscode-inputValidation-errorBorder, #be1100);
+	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.15));
+}
+
+/* Flag-Chips (klickbar) */
+.chip { padding: 0 6px; font-size: 0.74em; border-color: var(--vscode-panel-border); color: var(--vscode-descriptionForeground); }
+.chip:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
+.chip.active {
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+	border-color: var(--vscode-button-background);
+}
+
+/* Array */
+.array-toggle { padding: 1px 8px; font-size: 0.85em; border-color: var(--vscode-panel-border); }
+.array-toggle:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
+.array-panel {
+	padding: 6px 12px 10px 92px;
+	background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.06));
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.array-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.array-table { border-collapse: collapse; }
+.array-table td { padding: 1px 4px; }
+.array-rowhead, .array-colhead {
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.8em;
+	white-space: nowrap;
+}
+.array-rowhead { text-align: right; }
+.array-table .val {
+	width: 120px;
+	border-color: var(--vscode-input-border, rgba(128,128,128,0.35));
+	background: var(--vscode-input-background);
+}
+
+/* kurzes Aufblitzen nach erfolgreichem Speichern eines Feldes */
+@keyframes savedFlash {
+	from { background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 220, 0, 0.4)); }
+	to { background: var(--vscode-input-background); }
+}
+.saved { animation: savedFlash 0.6s ease-out; }
+
+.value { display: flex; align-items: center; }
+
+.array-badge {
+	padding: 1px 8px;
+	font-size: 0.82em;
+	border-radius: 3px;
+	background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.15));
+	color: var(--vscode-descriptionForeground);
+}
+
+.flags { display: flex; gap: 4px; }
+.chip {
+	padding: 0 5px;
+	font-size: 0.72em;
+	border-radius: 3px;
+	border: 1px solid var(--vscode-panel-border);
+	color: var(--vscode-descriptionForeground);
+}

@@ -1,0 +1,41 @@
+{
+  "name": "gdl-parameter-editor",
+  "displayName": "GDL Parameter Editor",
+  "description": "Visueller Editor für GDL-Parameterlisten (paramlist.xml / Parameters.xml, LP_XMLConverter-Format)",
+  "version": "0.5.7",
+  "publisher": "b-prisma",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "gdl.parameterEditor",
+        "displayName": "GDL Parameter Editor",
+        "selector": [
+          {
+            "filenamePattern": "**/paramlist.xml"
+          },
+          {
+            "filenamePattern": "**/Parameters.xml"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node test/roundtrip.js && node test/mutate.js && node test/structure.js && node test/arrays.js && node test/roundtrip-all.js",
+    "test:roundtrip": "node test/roundtrip.js",
+    "test:mutate": "node test/mutate.js",
+    "test:structure": "node test/structure.js",
+    "test:all": "node test/roundtrip-all.js",
+    "test:arrays": "node test/arrays.js"
+  },
+  "icon": "media/icon.png"
+}
