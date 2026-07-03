@@ -2,7 +2,7 @@
   "name": "gdl-parameter-editor",
   "displayName": "GDL Parameter Editor",
   "description": "Visual Editor for GDL `paramlist.xml` files.",
-  "version": "0.6.0",
+  "version": "0.6.3",
   "publisher": "runxel",
   "repository": {
     "type": "git",
@@ -34,6 +34,12 @@
         "priority": "default"
       }
     ],
+    "configurationDefaults": {
+      "workbench.editorAssociations": {
+        "{git,gitlens}:/**/paramlist.xml": "default",
+        "{git,gitlens}:/**/Parameters.xml": "default"
+      }
+    },
     "commands": [
       {
         "command": "gdl.parameterEditor.duplicate",
