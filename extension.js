@@ -6,22 +6,100 @@ const P = require('./src/paramlist');
 
 const VIEW_TYPE = 'gdl.parameterEditor';
 
+// Die Original-Extension (Upstream), von der dieser Fork abstammt. Beide
+// registrieren denselben viewType für dieselben Dateien — parallel installiert
+// gewinnt stillschweigend eine der beiden, die andere schlägt beim Registrieren
+// fehl. Deshalb: erkennen und deutlich warnen.
+const ORIGINAL_EXT_ID = 'b-prisma.gdl-parameter-editor';
+
+function warnIfOriginalInstalled() {
+	if (!vscode.extensions.getExtension(ORIGINAL_EXT_ID)) return false;
+	vscode.window.showWarningMessage(
+		'Konflikt: Der originale „GDL Parameter Editor" (b-prisma) und dieser Fork (runxel) ' +
+		'sind gleichzeitig installiert. Beide beanspruchen dieselben Dateien (paramlist.xml / ' +
+		'Parameters.xml) — nur einer von beiden funktioniert. Bitte eine der beiden Extensions deinstallieren.',
+		'Original (b-prisma) deinstallieren',
+		'Extensions anzeigen'
+	).then((choice) => {
+		if (choice === 'Original (b-prisma) deinstallieren') {
+			vscode.commands
+				.executeCommand('workbench.extensions.uninstallExtension', ORIGINAL_EXT_ID)
+				.then(
+					() => vscode.window
+						.showInformationMessage('Original deinstalliert. Fenster neu laden, damit der Fork den Editor übernimmt.', 'Neu laden')
+						.then((c) => { if (c === 'Neu laden') vscode.commands.executeCommand('workbench.action.reloadWindow'); }),
+					(e) => vscode.window.showErrorMessage('Deinstallation fehlgeschlagen: ' + String(e && e.message || e))
+				);
+		} else if (choice === 'Extensions anzeigen') {
+			vscode.commands.executeCommand('workbench.extensions.search', 'gdl-parameter-editor');
+		}
+	});
+	return true;
+}
+
 function activate(context) {
+	// Läuft dank onStartupFinished immer — auch wenn das Original den viewType
+	// „gewonnen" hat und dieser Fork sonst nie aktiviert würde.
+	let conflictWarned = warnIfOriginalInstalled();
+
+	// Auch erkennen, wenn das Original NACHTRÄGLICH installiert wird.
 	context.subscriptions.push(
-		vscode.window.registerCustomEditorProvider(
-			VIEW_TYPE,
-			new ParamEditorProvider(context),
-			{
-				webviewOptions: { retainContextWhenHidden: true },
-				supportsMultipleEditorsPerDocument: false,
+		vscode.extensions.onDidChange(() => {
+			if (vscode.extensions.getExtension(ORIGINAL_EXT_ID)) {
+				if (!conflictWarned) conflictWarned = warnIfOriginalInstalled();
+			} else {
+				conflictWarned = false;
 			}
-		)
+		})
 	);
+
+	const provider = new ParamEditorProvider(context);
+
+	// Kontextmenü-Befehl „Duplizieren" (Rechtsklick auf eine Zeile im Webview).
+	// ctx ist das data-vscode-context-Objekt der angeklickten Zeile.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('gdl.parameterEditor.duplicate', async (ctx) => {
+			const document = provider.activeDocument;
+			const name = ctx && ctx.paramName;
+			if (!document || !name) return;
+			try {
+				await provider.applyEdit(document, { field: 'duplicate', name });
+			} catch (e) {
+				vscode.window.showErrorMessage('Duplizieren fehlgeschlagen: ' + String(e && e.message || e));
+			}
+		})
+	);
+
+	try {
+		context.subscriptions.push(
+			vscode.window.registerCustomEditorProvider(
+				VIEW_TYPE,
+				provider,
+				{
+					webviewOptions: { retainContextWhenHidden: true },
+					supportsMultipleEditorsPerDocument: false,
+				}
+			)
+		);
+	} catch (e) {
+		// viewType schon vergeben → das Original war schneller. Ohne Warnung
+		// sähe der Nutzer nur kommentarlos den falschen Editor.
+		if (!conflictWarned) {
+			vscode.window.showErrorMessage(
+				'GDL Parameter Editor (Fork): Editor konnte nicht registriert werden — ' +
+				'vermutlich ist die Original-Extension (b-prisma) ebenfalls installiert. ' +
+				'Bitte eine der beiden deinstallieren.'
+			);
+		}
+	}
 }
 
 class ParamEditorProvider {
 	constructor(context) {
 		this.context = context;
+		// Dokument des zuletzt aktiven Editor-Panels — Ziel für Kontextmenü-
+		// Befehle (Rechtsklick geht immer im fokussierten Webview auf).
+		this.activeDocument = null;
 	}
 
 	/**
@@ -29,6 +107,9 @@ class ParamEditorProvider {
 	 * @param {vscode.WebviewPanel} panel
 	 */
 	async resolveCustomTextEditor(document, panel, _token) {
+		this.activeDocument = document;
+		panel.onDidChangeViewState(() => { if (panel.active) this.activeDocument = document; });
+
 		const webview = panel.webview;
 		webview.options = {
 			enableScripts: true,
@@ -56,11 +137,14 @@ class ParamEditorProvider {
 			if (document.getText() === lastWritten) return;
 			render();
 		});
-		panel.onDidDispose(() => changeSub.dispose());
+		panel.onDidDispose(() => {
+			changeSub.dispose();
+			if (this.activeDocument === document) this.activeDocument = null;
+		});
 
 		// Felder, nach denen die Liste neu gerendert werden muss (Identität/Optik
 		// ändert sich). Value/Description nicht — das Eingabefeld zeigt es bereits.
-		const RERENDER = ['move', 'reorder', 'add', 'delete', 'type', 'name', 'fix', 'flag',
+		const RERENDER = ['move', 'reorder', 'add', 'delete', 'duplicate', 'type', 'name', 'flag',
 			'arrayAddRow', 'arrayDelRow', 'arrayAddCol', 'arrayDelCol', 'arrayCreate', 'arrayRemove'];
 
 		webview.onDidReceiveMessage(async (msg) => {
@@ -97,11 +181,21 @@ class ParamEditorProvider {
 				P.setName(t.node, nm); break;
 			}
 			case 'type': { const t = findTarget(); if (!t) return null; P.setType(t.node, msg.value); break; }
-			case 'fix': { const t = findTarget(); if (!t) return null; P.setFix(t.node, !!msg.value); break; }
+			// 'fix' ist absichtlich KEIN Editier-Feld: <Fix/> wird vom Subtype des
+			// Objekts bestimmt und darf nie über den Editor gesetzt/entfernt werden.
 			case 'flag': { const t = findTarget(); if (!t) return null; P.setFlag(t.node, msg.flag, !!msg.value); break; }
 			case 'move': P.moveParam(doc, msg.name, msg.delta); break;
 			case 'reorder': P.reorderParams(doc, msg.names || []); break;
 			case 'delete': P.deleteParam(doc, msg.name); break;
+			case 'duplicate': {
+				const t = findTarget(); if (!t) return null;
+				// Namen sind eindeutig (case-insensitiv): "_new" anhängen,
+				// bei erneutem Duplizieren "_new2", "_new3", …
+				let newName = t.name + '_new';
+				for (let n = 2; P.nameExists(doc, newName, null); n++) newName = t.name + '_new' + n;
+				P.duplicateParam(doc, t.name, newName);
+				break;
+			}
 			case 'add': {
 				const nm = String(msg.newName || '').trim();
 				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '".');
