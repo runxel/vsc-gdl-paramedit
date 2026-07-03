@@ -21,12 +21,26 @@
 		'Profile', 'Dictionary',
 	];
 
+	// „Fix" ist bewusst NICHT dabei: es wird vom Subtype des Objekts bestimmt
+	// (externe Quelle) und darf nie vom Nutzer gesetzt werden — ein falsches
+	// <Fix/> kann das GDL-Objekt zum Absturz bringen oder unkompilierbar machen.
+	// Fixe Parameter werden nur angezeigt: blaue Zeile, wie im Archicad-Editor.
+	// Reihenfolge wie im Archicad-Parametereditor: Hide, Child, Bold, Unique.
+	// Hide und Child bekommen SVG-Icons nach dem Archicad-Vorbild (oranges X
+	// bzw. Einrück-Pfeil); Bold/Unique bleiben Buchstaben.
+	const SVG_HIDDEN =
+		'<svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">' +
+		'<path d="M3 3 13 13 M13 3 3 13" stroke="#fdfdfd" stroke-width="5.5" stroke-linecap="round"/>' +
+		'<path d="M3 3 13 13 M13 3 3 13" stroke="#e8642c" stroke-width="3" stroke-linecap="round"/></svg>';
+	const SVG_CHILD =
+		'<svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true" fill="none" ' +
+		'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+		'<path d="M3.5 3.5v9"/><path d="M3.5 8h8.5"/><path d="M9 4.5 12.5 8 9 11.5"/></svg>';
 	const FLAG_DEFS = [
-		{ key: 'fix', label: 'Fix', title: 'Fix (Wert beim Platzieren fixiert)' },
-		{ key: 'hidden', label: 'H', title: 'Versteckt (ParFlg_Hidden)', flag: 'ParFlg_Hidden' },
+		{ key: 'hidden', svg: SVG_HIDDEN, title: 'Versteckt (ParFlg_Hidden)', flag: 'ParFlg_Hidden' },
+		{ key: 'child', svg: SVG_CHILD, title: 'Untergeordnet/eingerückt (ParFlg_Child)', flag: 'ParFlg_Child' },
 		{ key: 'bold', label: 'B', title: 'Fett (ParFlg_BoldName)', flag: 'ParFlg_BoldName' },
 		{ key: 'unique', label: 'U', title: 'Eindeutig (ParFlg_Unique)', flag: 'ParFlg_Unique' },
-		{ key: 'child', label: 'C', title: 'Untergeordnet/eingerückt (ParFlg_Child)', flag: 'ParFlg_Child' },
 	];
 
 	let params = [];
@@ -119,7 +133,7 @@
 	}
 
 	function renderTitle(p) {
-		const row = el('div', 'row title');
+		const row = el('div', 'row title' + (p.fix ? ' fix' : ''));
 		row.appendChild(renderControls(p));
 
 		const name = document.createElement('input');
@@ -138,13 +152,14 @@
 		commitOnChange(cap, () => { send({ field: 'description', name: p.name, value: cap.value }); flash(cap); });
 		row.appendChild(cap);
 
+		setRowContext(row, p);
 		makeRowDroppable(row, p);
 		return row;
 	}
 
 	// Trennbalken (Separator): nur interner Name + Trennlinie, KEIN Überschriften-Text.
 	function renderSeparator(p) {
-		const row = el('div', 'row separator');
+		const row = el('div', 'row separator' + (p.fix ? ' fix' : ''));
 		row.appendChild(renderControls(p));
 
 		const name = document.createElement('input');
@@ -159,12 +174,14 @@
 		line.title = 'Trennbalken (ohne Überschrift)';
 		row.appendChild(line);
 
+		setRowContext(row, p);
 		makeRowDroppable(row, p);
 		return row;
 	}
 
 	function renderParam(p) {
-		const row = el('div', 'row' + (p.child ? ' child' : '') + (p.hidden ? ' hidden' : ''));
+		const row = el('div', 'row' + (p.child ? ' child' : '') + (p.hidden ? ' hidden' : '') + (p.fix ? ' fix' : '') + (p.bold ? ' bold' : ''));
+		if (p.fix) row.title = 'Fix — vom Subtype vorgegeben, hier nicht änderbar (blau wie in Archicad)';
 
 		row.appendChild(renderControls(p));
 
@@ -188,7 +205,7 @@
 		// Name (editierbar)
 		const name = document.createElement('input');
 		name.type = 'text';
-		name.className = 'pname' + (p.bold ? ' bold' : '');
+		name.className = 'pname';
 		name.value = p.name || '';
 		wireNameInput(name, p);
 		row.appendChild(name);
@@ -207,6 +224,7 @@
 
 		// Flags
 		row.appendChild(renderFlags(p));
+		setRowContext(row, p);
 		makeRowDroppable(row, p);
 		return row;
 	}
@@ -223,8 +241,6 @@
 		});
 		handle.addEventListener('dragend', () => { dragName = null; });
 		c.appendChild(handle);
-		c.appendChild(iconBtn('▲', 'Nach oben', () => send({ field: 'move', name: p.name, delta: -1 })));
-		c.appendChild(iconBtn('▼', 'Nach unten', () => send({ field: 'move', name: p.name, delta: 1 })));
 		c.appendChild(iconBtn('＋', 'Neuen Parameter unter diesem einfügen', () =>
 			send({ field: 'add', paramType: 'Length', newName: makeUniqueName(), afterName: p.name })));
 		c.appendChild(iconBtn('🗑', 'Löschen (rückgängig mit Cmd+Z)', () => send({ field: 'delete', name: p.name })));
@@ -237,6 +253,17 @@
 		let n = 1, name;
 		do { name = base + n++; } while (existing.has(name.toLowerCase()));
 		return name;
+	}
+
+	// VS-Code-natives Kontextmenü (Rechtsklick): „Duplizieren" — der Befehl
+	// ist in package.json unter webview/context registriert und bekommt
+	// dieses Objekt (inkl. paramName) übergeben.
+	function setRowContext(row, p) {
+		row.dataset.vscodeContext = JSON.stringify({
+			webviewSection: 'param',
+			paramName: p.name,
+			preventDefaultContextMenuItems: true,
+		});
 	}
 
 	// ── Drag & Drop: Zeile auf eine andere ziehen → davor einsortieren ──
@@ -282,6 +309,7 @@
 			cb.checked = p.valueText === '1';
 			cb.addEventListener('change', () => { send({ field: 'value', name: p.name, value: cb.checked ? '1' : '0' }); flash(cb); });
 			wrap.appendChild(cb);
+			wrap.appendChild(makeArrayBtn(p));
 			return wrap;
 		}
 		if (p.valueKind === 'dict') {
@@ -321,23 +349,28 @@
 			flash(inp);
 		});
 		wrap.appendChild(inp);
-		wrap.appendChild(iconBtn('⊞', 'In Array umwandeln', () => {
+		wrap.appendChild(makeArrayBtn(p));
+		return wrap;
+	}
+
+	// „In Array umwandeln"-Button (⊞) — für alle wertetragenden Typen gleich.
+	function makeArrayBtn(p) {
+		const b = iconBtn('⊞', 'In Array umwandeln', () => {
 			expanded.add(p.name);
 			send({ field: 'arrayCreate', name: p.name, rows: 1, cols: 0 });
-		}));
-		return wrap;
+		});
+		b.classList.add('array-make');
+		return b;
 	}
 
 	function renderFlags(p) {
 		const box = el('span', 'flags');
 		for (const f of FLAG_DEFS) {
 			const active = !!p[f.key];
-			const chip = el('button', 'chip' + (active ? ' active' : ''), f.label);
+			const chip = el('button', 'chip' + (active ? ' active' : ''));
+			if (f.svg) chip.innerHTML = f.svg; else chip.textContent = f.label;
 			chip.title = f.title;
-			chip.addEventListener('click', () => {
-				if (f.key === 'fix') send({ field: 'fix', name: p.name, value: !active });
-				else send({ field: 'flag', name: p.name, flag: f.flag, value: !active });
-			});
+			chip.addEventListener('click', () => send({ field: 'flag', name: p.name, flag: f.flag, value: !active }));
 			box.appendChild(chip);
 		}
 		return box;
@@ -352,11 +385,14 @@
 		const map = new Map(a.cells.map((c) => [c.row + ':' + (c.col > 0 ? c.col : 1), c.value]));
 		const rowsPresent = [...new Set(a.cells.map((c) => c.row))].sort((x, y) => x - y);
 
+		// Buttons zuerst (feste Position!), Größen-Label dahinter — sonst
+		// verschiebt eine Textänderung (z.B. „(1D)" → „2 × 3") die Buttons
+		// unter dem Mauszeiger.
 		const bar = el('div', 'array-bar');
-		bar.appendChild(el('span', 'muted', is2D ? (a.first + ' × ' + a.second) : (a.first + ' Zeilen (1D)')));
 		bar.appendChild(txtBtn('+ Zeile', 'Zeile am Ende anhängen', () => send({ field: 'arrayAddRow', name: p.name })));
 		bar.appendChild(txtBtn('+ Spalte', is2D ? 'Spalte anhängen' : 'In 2D umwandeln (Spalte hinzufügen)', () => send({ field: 'arrayAddCol', name: p.name })));
 		bar.appendChild(txtBtn('Kein Array', 'In skalaren Wert zurückwandeln', () => send({ field: 'arrayRemove', name: p.name })));
+		bar.appendChild(el('span', 'muted', is2D ? (a.first + ' × ' + a.second) : (a.first + ' Zeilen (1D)')));
 		panel.appendChild(bar);
 
 		const table = el('table', 'array-table');
@@ -380,10 +416,21 @@
 			for (let c = 1; c <= cols; c++) {
 				const sendCol = is2D ? c : 0; // setArrayCell erwartet 0 bei 1D
 				const td = document.createElement('td');
+				const v = map.get(r + ':' + c);
+				if (p.valueKind === 'boolean') {
+					// Boolean-Zellen als Checkbox (wie der skalare Wert) —
+					// so landet nie ungültiger Freitext im <AVal>.
+					const cb = document.createElement('input');
+					cb.type = 'checkbox';
+					cb.checked = v === '1';
+					cb.addEventListener('change', () => { send({ field: 'arraycell', name: p.name, row: r, col: sendCol, value: cb.checked ? '1' : '0' }); flash(cb); });
+					td.appendChild(cb);
+					tr.appendChild(td);
+					continue;
+				}
 				const inp = document.createElement('input');
 				inp.type = 'text';
 				inp.className = 'val ' + p.valueKind;
-				const v = map.get(r + ':' + c);
 				inp.value = v != null ? v : '';
 				const numericCell = p.valueKind === 'number' || p.valueKind === 'index';
 				if (numericCell) inp.inputMode = 'decimal';
