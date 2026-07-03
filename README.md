@@ -45,7 +45,6 @@ Fenster neu laden.
   `Child`-Flag darunter einrücken.
 - **Array-Editor** (1D & 2D): Zellen editieren, Zeilen/Spalten hinzufügen/entfernen,
   zwischen skalar und Array wandeln; sparse Arrays bleiben erhalten.
-- **b-prisma-Logo** themenabhängig (hell/dunkel) in der Toolbar.
 
 ## Aufbau
 
