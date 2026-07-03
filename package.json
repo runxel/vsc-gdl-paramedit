@@ -1,16 +1,22 @@
 {
   "name": "gdl-parameter-editor",
   "displayName": "GDL Parameter Editor",
-  "description": "Visueller Editor für GDL-Parameterlisten (paramlist.xml / Parameters.xml, LP_XMLConverter-Format)",
-  "version": "0.5.7",
-  "publisher": "b-prisma",
+  "description": "Visual Editor for GDL `paramlist.xml` files.",
+  "version": "0.6.0",
+  "publisher": "runxel",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/runxel/vsc-gdl-paramedit.git"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./extension.js",
   "contributes": {
     "customEditors": [
@@ -27,7 +33,27 @@
         ],
         "priority": "default"
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "gdl.parameterEditor.duplicate",
+        "title": "Duplicate"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "gdl.parameterEditor.duplicate",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "gdl.parameterEditor.duplicate",
+          "when": "webviewId == 'gdl.parameterEditor' && webviewSection == 'param'"
+        }
+      ]
+    }
   },
   "scripts": {
     "test": "node test/roundtrip.js && node test/mutate.js && node test/structure.js && node test/arrays.js && node test/roundtrip-all.js",
