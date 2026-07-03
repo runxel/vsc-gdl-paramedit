@@ -486,22 +486,10 @@ function removeElementWithWs(parent, el) {
 	else parent.children.splice(i, 1);
 }
 
-/**
- * Setzt/entfernt das <Fix/>-Element chirurgisch (alle anderen Knoten bleiben).
- */
-function setFix(node, on) {
-	const fixEl = childElement(node, 'Fix');
-	if (on && !fixEl) {
-		const ref = childElement(node, 'Description');
-		if (ref) insertAfter(node, ref, selfCloseEl('Fix'));
-		else {
-			const ws = node.children[0] && node.children[0].type === 'text' ? node.children[0].raw : '\n\t\t\t';
-			node.children.unshift(textNode(ws), selfCloseEl('Fix'));
-		}
-	} else if (!on && fixEl) {
-		removeElementWithWs(node, fixEl);
-	}
-}
+// HINWEIS: Es gibt bewusst KEIN setFix(). <Fix/> wird vom Subtype des Objekts
+// bestimmt (externe Quelle) und darf nie über den Editor gesetzt oder entfernt
+// werden — ein falsches Fix kann das GDL-Objekt zum Absturz bringen oder
+// unkompilierbar machen. Der Editor liest Fix nur (blaue Zeile in der UI).
 
 /**
  * Schaltet ein einzelnes Flag (ParFlg_*) an/aus — chirurgisch, erhält
@@ -657,6 +645,33 @@ function deleteParam(doc, name) {
 	const { blocks, trailing } = splitBlocks(paramsEl);
 	const kept = blocks.filter((b) => getAttr(b.el.rawOpen, 'Name') !== name);
 	assembleBlocks(paramsEl, kept, trailing);
+}
+
+/**
+ * Dupliziert einen Parameter (inkl. Wert, Beschreibung, Flags, Fix, Arrays)
+ * und fügt die Kopie direkt hinter dem Original ein. Die Kopie entsteht durch
+ * erneutes Parsen des Roh-Texts des Originals — dadurch byte-identische
+ * Struktur, nur das Name-Attribut wird ersetzt. Kommentare/Leerzeilen VOR dem
+ * Original (dessen Block-Lead) werden bewusst nicht mitkopiert.
+ */
+function duplicateParam(doc, name, newName) {
+	const paramsEl = findParametersElement(doc);
+	if (!paramsEl) throw new Error('Kein <Parameters>-Element');
+	if (!isValidName(newName)) throw new Error('Ungültiger Name: ' + newName);
+	if (nameExists(doc, newName, null)) throw new Error('Parametername existiert bereits: ' + newName);
+	const { blocks, trailing } = splitBlocks(paramsEl);
+	const i = blocks.findIndex((b) => getAttr(b.el.rawOpen, 'Name') === name);
+	if (i < 0) return null;
+	const copy = buildTree(tokenize(serializeNode(blocks[i].el)))
+		.children.find((c) => c.type === 'element');
+	setName(copy, newName);
+	// <Fix/> gilt nur für den vom Subtype vorgegebenen Namen — eine umbenannte
+	// Kopie ist nicht Teil des Subtypes, ein kopiertes Fix wäre falsch/gefährlich.
+	const fixEl = childElement(copy, 'Fix');
+	if (fixEl) removeElementWithWs(copy, fixEl);
+	blocks.splice(i + 1, 0, { lead: [textNode(paramIndentWs(blocks))], el: copy });
+	assembleBlocks(paramsEl, blocks, trailing);
+	return copy;
 }
 
 /**
@@ -886,8 +901,8 @@ module.exports = {
 	childElement, childElements, getAttr, innerRaw, stripCdata, stripQuotes, readArray,
 	escapeGdlStr, unescapeGdlStr, normalizeNumber,
 	setInner, setValue, setValueByType, setDescription,
-	currentFlags, setFix, setFlag, setName, setType, normalizeForType,
-	reorderParams, moveParam, deleteParam, addParam, setArrayCell,
+	currentFlags, setFlag, setName, setType, normalizeForType,
+	reorderParams, moveParam, deleteParam, addParam, duplicateParam, setArrayCell,
 	isValidName, nameExists,
 	addArrayRow, removeArrayRow, addArrayCol, removeArrayCol, createArray, removeArray, readArrayCells,
 };
