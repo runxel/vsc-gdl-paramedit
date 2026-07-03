@@ -175,7 +175,7 @@ class ParamEditorProvider {
 			case 'name': {
 				const t = findTarget(); if (!t) return null;
 				const nm = String(msg.value || '').trim();
-				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '". Erlaubt: Buchstaben, Ziffern, Unterstrich (Beginn mit Buchstabe oder _).');
+				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '". Erlaubt: Buchstaben, Ziffern, Unterstrich (Beginn mit Buchstabe oder _), maximal ' + P.MAX_NAME_LENGTH + ' Zeichen.');
 				if (P.nameExists(doc, nm, t.node)) throw new Error('Der Name „' + nm + '" existiert bereits. Namen müssen eindeutig sein.');
 				P.setName(t.node, nm); break;
 			}
@@ -189,15 +189,17 @@ class ParamEditorProvider {
 			case 'duplicate': {
 				const t = findTarget(); if (!t) return null;
 				// Namen sind eindeutig (case-insensitiv): "_new" anhängen,
-				// bei erneutem Duplizieren "_new2", "_new3", …
-				let newName = t.name + '_new';
-				for (let n = 2; P.nameExists(doc, newName, null); n++) newName = t.name + '_new' + n;
+				// bei erneutem Duplizieren "_new2", "_new3", … Der Basisname wird
+				// bei Bedarf gekürzt, damit das 32-Zeichen-Limit eingehalten bleibt.
+				const mk = (suffix) => t.name.slice(0, P.MAX_NAME_LENGTH - suffix.length) + suffix;
+				let newName = mk('_new');
+				for (let n = 2; P.nameExists(doc, newName, null); n++) newName = mk('_new' + n);
 				P.duplicateParam(doc, t.name, newName);
 				break;
 			}
 			case 'add': {
 				const nm = String(msg.newName || '').trim();
-				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '".');
+				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '" (max. ' + P.MAX_NAME_LENGTH + ' Zeichen).');
 				if (P.nameExists(doc, nm, null)) throw new Error('Der Name „' + nm + '" existiert bereits.');
 				P.addParam(doc, { type: msg.paramType, name: nm, afterName: msg.afterName || null });
 				break;

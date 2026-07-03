@@ -525,9 +525,12 @@ function setFlag(node, flagTag, on) {
 	}
 }
 
-/** Gültiger GDL-Parametername? (Buchstabe/_ am Anfang, dann alphanumerisch/_) */
+/** Maximale Länge eines GDL-Parameternamens (Archicad-Limit). */
+const MAX_NAME_LENGTH = 32;
+
+/** Gültiger GDL-Parametername? (Buchstabe/_ am Anfang, dann alphanumerisch/_, max. 32 Zeichen) */
 function isValidName(name) {
-	return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name || '');
+	return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name || '') && name.length <= MAX_NAME_LENGTH;
 }
 
 /** Existiert der Name (case-insensitiv) bereits — außer am Knoten exceptNode? */
@@ -903,6 +906,6 @@ module.exports = {
 	setInner, setValue, setValueByType, setDescription,
 	currentFlags, setFlag, setName, setType, normalizeForType,
 	reorderParams, moveParam, deleteParam, addParam, duplicateParam, setArrayCell,
-	isValidName, nameExists,
+	isValidName, nameExists, MAX_NAME_LENGTH,
 	addArrayRow, removeArrayRow, addArrayCol, removeArrayCol, createArray, removeArray, readArrayCells,
 };

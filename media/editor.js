@@ -52,7 +52,8 @@
 	//    sofortiges Feedback; der Extension-Host bleibt die maßgebliche Prüfung) ──
 	const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/; // keine Ziffer am Anfang, keine
 	// Leer-/Sonderzeichen außer _, keine Umlaute/ß
-	function isValidNameC(n) { return NAME_RE.test(n || ''); }
+	const MAX_NAME_LEN = 32; // Archicad-Limit für Parameternamen
+	function isValidNameC(n) { return NAME_RE.test(n || '') && n.length <= MAX_NAME_LEN; }
 
 	const INDEX_TYPES = new Set(['PenColor', 'LineType', 'FillPattern', 'Material', 'BuildingMaterial', 'Profile', 'Dictionary']);
 	// Liefert {ok, value} — value ist die normalisierte Zahl (Komma→Punkt).
@@ -64,11 +65,13 @@
 	}
 
 	const NAME_RULE = 'Erlaubt: Buchstaben, Ziffern und _ — Beginn mit Buchstabe oder _, ' +
-		'keine Leerzeichen, keine Umlaute/ß, keine sonstigen Sonderzeichen.';
+		'keine Leerzeichen, keine Umlaute/ß, keine sonstigen Sonderzeichen, maximal ' +
+		MAX_NAME_LEN + ' Zeichen.';
 
 	// Verdrahtet ein Namens-Eingabefeld: Live-Markierung ungültiger Zeichen +
 	// Prüfung beim Verlassen (ungültig → Hinweis, Feld auf Wahrheit zurück).
 	function wireNameInput(input, p) {
+		input.maxLength = MAX_NAME_LEN;
 		input.addEventListener('input', () =>
 			input.classList.toggle('invalid', input.value.trim() !== '' && !isValidNameC(input.value.trim())));
 		commitOnChange(input, () => {
