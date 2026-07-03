@@ -204,7 +204,7 @@
 
 	function renderParam(p) {
 		const row = el('div', 'row' + (p.child ? ' child' : '') + (p.hidden ? ' hidden' : '') + (p.fix ? ' fix' : '') + (p.bold ? ' bold' : ''));
-		if (p.fix) row.title = 'Fix — vom Subtype vorgegeben, hier nicht änderbar (blau wie in Archicad)';
+		if (p.fix) row.title = 'Fix — vom Subtype vorgegeben';
 
 		row.appendChild(renderControls(p));
 
@@ -340,7 +340,7 @@
 			// Dictionary: <Value> ist ein Container, nicht skalar editierbar.
 			// Hier nur anzeigen (Einträge werden im Editor derzeit nicht bearbeitet).
 			const badge = el('span', 'dict-badge', 'Dictionary');
-			badge.title = 'Dictionary-Inhalt wird hier nicht skalar bearbeitet (Container).';
+			badge.title = 'Dictionary-Inhalt kann nicht in der Parameterliste festgelegt werden.';
 			wrap.appendChild(badge);
 			return wrap;
 		}

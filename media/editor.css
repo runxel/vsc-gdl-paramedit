@@ -32,7 +32,8 @@ body {
 #filter {
 	width: 100%;
 	box-sizing: border-box;
-	padding: 4px 26px 4px 8px; /* rechts Platz für den Löschen-Button */
+	padding: 4px 26px 4px 8px;
+	/* rechts Platz für den Löschen-Button */
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
@@ -56,9 +57,15 @@ body {
 	border-radius: 3px;
 	opacity: 0.6;
 }
-#filterClear:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
 
-.muted { color: var(--vscode-descriptionForeground); }
+#filterClear:hover {
+	opacity: 1;
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
+
+.muted {
+	color: var(--vscode-descriptionForeground);
+}
 
 .error {
 	margin: 8px 12px;
@@ -78,7 +85,9 @@ body {
 	border: 1px solid var(--vscode-inputValidation-warningBorder, #b8a30a);
 }
 
-#list { padding: 4px 0 24px; }
+#list {
+	padding: 4px 0 24px;
+}
 
 .row {
 	display: grid;
@@ -88,13 +97,24 @@ body {
 	padding: 3px 12px;
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
-.row:hover { background: var(--vscode-list-hoverBackground); }
 
-.row.child .pname { margin-left: 14px; }
+.row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.row.child .pname {
+	margin-left: 14px;
+}
+
 /* Versteckte Zeilen dimmen — aber nicht die Flag-Chips, damit vor allem
    das rote Hide-X voll sichtbar bleibt. */
-.row.hidden > :not(.flags) { opacity: 0.6; }
-.row.drop-target { box-shadow: inset 0 2px 0 0 var(--vscode-focusBorder); }
+.row.hidden> :not(.flags) {
+	opacity: 0.6;
+}
+
+.row.drop-target {
+	box-shadow: inset 0 2px 0 0 var(--vscode-focusBorder);
+}
 
 .row.title {
 	/* Spalte 2 = Flags (nur Hidden-Chip sichtbar, Rest Platzhalter) — dadurch
@@ -102,7 +122,7 @@ body {
 	grid-template-columns: 118px auto 150px 1fr;
 	margin-top: 10px;
 	padding: 6px 12px;
-	background: var(--vscode-sideBarSectionHeader-background, rgba(127,127,127,0.12));
+	background: var(--vscode-sideBarSectionHeader-background, rgba(127, 127, 127, 0.12));
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
@@ -113,10 +133,11 @@ body {
 	padding: 4px 12px;
 	align-items: center;
 }
+
 .separator-line {
 	display: block;
 	height: 0;
-	border-top: 2px dashed var(--vscode-panel-border, rgba(128,128,128,0.5));
+	border-top: 2px dashed var(--vscode-panel-border, rgba(128, 128, 128, 0.5));
 	opacity: 0.8;
 }
 
@@ -126,12 +147,27 @@ body {
 	user-select: none;
 	padding: 0 2px;
 }
-.row:hover .drag-handle { opacity: 0.8; }
-.drag-handle:active { cursor: grabbing; }
+
+.row:hover .drag-handle {
+	opacity: 0.8;
+}
+
+.drag-handle:active {
+	cursor: grabbing;
+}
 
 /* Steuer-Buttons (verschieben/löschen) */
-.controls { display: flex; gap: 2px; }
-.icon-btn, #addBtn, #addGroupBtn, #addSeparatorBtn, .array-toggle, .chip {
+.controls {
+	display: flex;
+	gap: 2px;
+}
+
+.icon-btn,
+#addBtn,
+#addGroupBtn,
+#addSeparatorBtn,
+.array-toggle,
+.chip {
 	font: inherit;
 	cursor: pointer;
 	color: var(--vscode-foreground);
@@ -139,20 +175,46 @@ body {
 	border: 1px solid transparent;
 	border-radius: 3px;
 }
-.icon-btn { padding: 1px 4px; font-size: 0.85em; opacity: 0.55; }
+
+.icon-btn {
+	padding: 1px 4px;
+	font-size: 0.85em;
+	opacity: 0.55;
+}
+
 /* „In Array umwandeln" (⊞): deutlich größer als die übrigen Icon-Buttons.
    margin-left:auto hält ihn am rechten Rand der Wert-Spalte — auch bei
    schmalen Werten (Checkbox), damit die Buttons zeilenübergreifend fluchten. */
-.icon-btn.array-make { padding: 2px 7px; font-size: 1.15em; line-height: 1; opacity: 0.7; margin-left: auto; }
-.row:hover .icon-btn { opacity: 1; }
-.icon-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
+.icon-btn.array-make {
+	padding: 2px 7px 1px 7px;
+	font-size: 1.15em;
+	line-height: 1;
+	opacity: 0.7;
+	margin-left: auto;
+	transform: translateY(-1px);
+}
 
-#addBtn, #addGroupBtn, #addSeparatorBtn {
+.row:hover .icon-btn {
+	opacity: 1;
+}
+
+.icon-btn:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
+
+#addBtn,
+#addGroupBtn,
+#addSeparatorBtn {
 	padding: 3px 10px;
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 }
-#addBtn:hover, #addGroupBtn:hover, #addSeparatorBtn:hover { background: var(--vscode-button-hoverBackground); }
+
+#addBtn:hover,
+#addGroupBtn:hover,
+#addSeparatorBtn:hover {
+	background: var(--vscode-button-hoverBackground);
+}
 
 .type-select {
 	width: 100%;
@@ -166,15 +228,19 @@ body {
 	background: transparent;
 	border: 1px solid transparent;
 }
+
 .row:hover .type-select {
 	border-color: var(--vscode-input-border, rgba(128, 128, 128, 0.35));
 	background: var(--vscode-dropdown-background);
 }
+
 .type-select:focus {
-	outline: none; /* Standard-Fokus-Outline des Webviews (Akzentfarbe) unterdrücken */
+	outline: none;
+	/* Standard-Fokus-Outline des Webviews (Akzentfarbe) unterdrücken */
 	border-color: var(--vscode-focusBorder);
 	background: var(--vscode-dropdown-background);
 }
+
 .title-text {
 	width: 100%;
 	box-sizing: border-box;
@@ -186,8 +252,17 @@ body {
 	border: 1px solid transparent;
 	border-radius: 3px;
 }
-.row.title:hover .title-text { border-color: var(--vscode-input-border, rgba(128,128,128,0.35)); background: var(--vscode-input-background); }
-.title-text:focus { outline: none; border-color: var(--vscode-focusBorder); background: var(--vscode-input-background); }
+
+.row.title:hover .title-text {
+	border-color: var(--vscode-input-border, rgba(128, 128, 128, 0.35));
+	background: var(--vscode-input-background);
+}
+
+.title-text:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-input-background);
+}
 
 .badge {
 	display: inline-block;
@@ -202,9 +277,16 @@ body {
 	color: var(--vscode-badge-foreground);
 }
 
-.pname { font-family: var(--vscode-editor-font-family, monospace); }
+.pname {
+	font-family: var(--vscode-editor-font-family, monospace);
+}
+
 /* ParFlg_BoldName: Name, Beschreibung und Wert fett darstellen. */
-.row.bold .pname, .row.bold .desc, .row.bold .val { font-weight: 700; }
+.row.bold .pname,
+.row.bold .desc,
+.row.bold .val {
+	font-weight: 700;
+}
 
 /* Dictionary-Wert: nicht editierbar, nur Hinweis-Badge. */
 .dict-badge {
@@ -218,7 +300,9 @@ body {
 	opacity: 0.8;
 }
 
-.desc, .val, .pname {
+.desc,
+.val,
+.pname {
 	width: 100%;
 	box-sizing: border-box;
 	padding: 3px 6px;
@@ -229,20 +313,33 @@ body {
 	background: transparent;
 	border: 1px solid transparent;
 }
-.row:hover .desc, .row:hover .val, .row:hover .pname {
+
+.row:hover .desc,
+.row:hover .val,
+.row:hover .pname {
 	border-color: var(--vscode-input-border, rgba(128, 128, 128, 0.35));
 	background: var(--vscode-input-background);
 }
-.desc:focus, .val:focus, .pname:focus {
+
+.desc:focus,
+.val:focus,
+.pname:focus {
 	outline: none;
 	border-color: var(--vscode-focusBorder);
 	background: var(--vscode-input-background);
 }
-.val.number, .val.index { font-family: var(--vscode-editor-font-family, monospace); }
+
+.val.number,
+.val.index {
+	font-family: var(--vscode-editor-font-family, monospace);
+}
 
 /* Ungültige Eingabe (Name mit unerlaubten Zeichen, keine Zahl): rot markiert. */
-.desc.invalid, .val.invalid, .pname.invalid,
-.row:hover .pname.invalid, .row:hover .val.invalid {
+.desc.invalid,
+.val.invalid,
+.pname.invalid,
+.row:hover .pname.invalid,
+.row:hover .val.invalid {
 	border-color: var(--vscode-inputValidation-errorBorder, #be1100);
 	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.15));
 }
@@ -258,19 +355,43 @@ body {
 }
 
 /* Flag-Chips (klickbar) */
-.chip { padding: 0 6px; font-size: 0.74em; border-color: var(--vscode-panel-border); color: var(--vscode-descriptionForeground); }
+.chip {
+	padding: 0 6px;
+	font-size: 0.74em;
+	border-color: var(--vscode-panel-border);
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Einheitliche Chip-Größe für Buchstaben UND SVG-Icons (Hide/Child). */
-.chip { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; min-height: 15px; }
-.chip svg { display: block; }
-.chip:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
+.chip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 20px;
+	min-height: 15px;
+}
+
+.chip svg {
+	display: block;
+}
+
+.chip:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
+
 /* Unsichtbare Platzhalter-Chips (z. B. in Titelzeilen): halten die Spalte
    gleich breit, damit Gruppen-Namen mit Parameter-Namen fluchten. */
-.chip.ghost { visibility: hidden; pointer-events: none; }
+.chip.ghost {
+	visibility: hidden;
+	pointer-events: none;
+}
+
 .chip.active {
 	color: var(--vscode-button-foreground);
 	background: var(--vscode-button-background);
 	border-color: var(--vscode-button-background);
 }
+
 /* Hide-Chip aktiv: nur das X wird rot — kein gefüllter Button-Hintergrund,
    damit Theme-Farben (z. B. rötliche Button-Backgrounds) nicht mit dem
    Icon kollidieren. */
@@ -279,50 +400,96 @@ body {
 	background: transparent;
 	border-color: var(--vscode-panel-border);
 }
-.chip-hidden.active:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
+
+.chip-hidden.active:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
 
 /* Array */
-.array-toggle { padding: 1px 8px; font-size: 0.85em; border-color: var(--vscode-panel-border); }
-.array-toggle:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
+.array-toggle {
+	padding: 1px 8px;
+	font-size: 0.85em;
+	border-color: var(--vscode-panel-border);
+}
+
+.array-toggle:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
+
 .array-panel {
 	padding: 6px 12px 10px 92px;
-	background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.06));
+	background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.06));
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
-.array-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.array-table { border-collapse: collapse; }
-.array-table td { padding: 1px 4px; }
-.array-rowhead, .array-colhead {
+
+.array-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+}
+
+.array-table {
+	border-collapse: collapse;
+}
+
+.array-table td {
+	padding: 1px 4px;
+}
+
+.array-rowhead,
+.array-colhead {
 	color: var(--vscode-descriptionForeground);
 	font-size: 0.8em;
 	white-space: nowrap;
 }
-.array-rowhead { text-align: right; }
+
+.array-rowhead {
+	text-align: right;
+}
+
 .array-table .val {
 	width: 120px;
-	border-color: var(--vscode-input-border, rgba(128,128,128,0.35));
+	border-color: var(--vscode-input-border, rgba(128, 128, 128, 0.35));
 	background: var(--vscode-input-background);
 }
 
 /* kurzes Aufblitzen nach erfolgreichem Speichern eines Feldes */
 @keyframes savedFlash {
-	from { background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 220, 0, 0.4)); }
-	to { background: var(--vscode-input-background); }
-}
-.saved { animation: savedFlash 0.6s ease-out; }
+	from {
+		background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 220, 0, 0.4));
+	}
 
-.value { display: flex; align-items: center; }
+	to {
+		background: var(--vscode-input-background);
+	}
+}
+
+.saved {
+	animation: savedFlash 0.6s ease-out;
+}
+
+.value {
+	display: flex;
+	align-items: center;
+}
 
 .array-badge {
 	padding: 1px 8px;
 	font-size: 0.82em;
 	border-radius: 3px;
-	background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.15));
+	background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.15));
 	color: var(--vscode-descriptionForeground);
 }
 
 /* Etwas Luft zwischen Papierkorb und Flag-Chips (zusätzlich zum Grid-Gap). */
-.flags { display: flex; gap: 4px; margin-left: 6px; margin-right: 6px; }
+.flags {
+	display: flex;
+	gap: 4px;
+	margin-left: 6px;
+	margin-right: 6px;
+}
+
 .chip {
 	padding: 0 5px;
 	font-size: 0.72em;
