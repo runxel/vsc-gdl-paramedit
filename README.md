@@ -12,12 +12,9 @@ Der XML-Kern ist **verlustfrei**: Unveränderte Dateien bleiben beim Speichern
 Wertänderung fasst nur genau diese Stelle an. Die Rückkonvertierung zu GSM kann
 durch den Editor nicht beschädigt werden.
 
-Getestet gegen **3698** echte ParamSection-XML-Dateien (`npm test`).
+## Install
 
-## Installieren
-
-Fertiges Extension-Paket: **[`dist/gdl-parameter-editor-0.5.7.vsix`](dist/)**
-(oder über die [Releases-Seite](https://github.com/gdl-joe/vscode-gdl-parameter-editor/releases/latest)).
+See [Releases](https://github.com/gdl-joe/vscode-gdl-parameter-editor/releases/latest)).
 
 In VSCode: Extensions → `…` → **„Aus VSIX installieren…"** → die `.vsix` wählen →
 Fenster neu laden.
@@ -26,7 +23,7 @@ Fenster neu laden.
 
 1. Diesen Ordner in VSCode öffnen.
 2. **F5** → „Extension starten (Development Host)“.
-3. Im neuen Fenster eine `…/07_HSF/<Objekt>/<Objekt>/paramlist.xml` öffnen.
+3. Im neuen Fenster eine `…‚/<Objekt>/<Objekt>/paramlist.xml` öffnen.
 4. Es öffnet sich der visuelle Editor. Über das Editor-Menü
    („Reopen Editor With… → Text Editor“) lässt sich jederzeit der Rohtext zeigen.
 
@@ -37,7 +34,9 @@ Fenster neu laden.
 - **Editieren** typabhängig: Boolean = Checkbox, String = CDATA-/Quote-sicher,
   Zahlen/Indizes als Textfeld; Beschreibungen und Namen direkt editierbar.
 - **Typ ändern** per Dropdown (Wertformat wird angepasst).
-- **Flags umschalten** per Klick: `Fix`, `Hidden`, `Bold`, `Unique`, `Child`.
+- **Flags umschalten** per Klick: `Hidden`, `Bold`, `Unique`, `Child`.
+- **Fixe Parameter** (`Fix` vom Subtype vorgegeben) werden als **blaue Zeile**
+  angezeigt — wie im Archicad-Editor — und sind bewusst nicht umschaltbar.
 - **Eindeutige Namen** werden erzwungen (case-insensitiv) inkl. Namensvalidierung.
 - **Hinzufügen / Löschen / Verschieben**: neuer Parameter an beliebiger Stelle
   (＋ pro Zeile), Löschen (rückgängig mit Cmd+Z), Reihenfolge per ▲▼ **oder

@@ -1,7 +1,6 @@
 'use strict';
 
 const vscode = require('vscode');
-const fs = require('fs');
 const P = require('./src/paramlist');
 
 const VIEW_TYPE = 'gdl.parameterEditor';
@@ -250,7 +249,6 @@ class ParamEditorProvider {
 </head>
 <body>
 	<div id="toolbar">
-		${this.logoTags(webview)}
 		<input id="filter" type="text" placeholder="Filtern (Name oder Beschreibung)…">
 		<button id="addBtn" title="Neuen Parameter am Ende hinzufügen">+ Parameter</button>
 		<button id="addGroupBtn" title="Neue Gruppen-Überschrift (Title) hinzufügen">+ Gruppe</button>
@@ -265,34 +263,6 @@ class ParamEditorProvider {
 </html>`;
 	}
 
-	/**
-	 * Bindet das b-prisma-Logo ein (themenabhängig hell/dunkel). Das SVG wird
-	 * INLINE eingebettet (kein externes <img>) — so gibt es keine CSP-/URI-/
-	 * Lade-Probleme. PNG/WebP werden weiterhin als data-URI eingebettet.
-	 */
-	logoTags(_webview) {
-		const readLogo = (variant) => {
-			const names = ['logo-' + variant, variant + '-logo', 'b-prisma-' + variant, 'logo-' + variant + 'mode'];
-			for (const base of names) {
-				for (const ext of ['svg', 'png', 'webp']) {
-					const file = vscode.Uri.joinPath(this.context.extensionUri, 'media', base + '.' + ext).fsPath;
-					try {
-						if (ext === 'svg') {
-							let svg = fs.readFileSync(file, 'utf8');
-							// XML-Deklaration + DOCTYPE entfernen, damit es inline gültig ist
-							svg = svg.replace(/<\?xml[\s\S]*?\?>/i, '').replace(/<!DOCTYPE[\s\S]*?>/i, '').trim();
-							return `<span class="logo logo-${variant}" title="b-prisma">${svg}</span>`;
-						}
-						const b64 = fs.readFileSync(file).toString('base64');
-						const mime = ext === 'png' ? 'image/png' : 'image/webp';
-						return `<img class="logo logo-${variant}" alt="b-prisma" src="data:${mime};base64,${b64}">`;
-					} catch (_) { /* nächste Variante */ }
-				}
-			}
-			return '';
-		};
-		return readLogo('light') + readLogo('dark');
-	}
 }
 
 /** Reduziert einen Parameter auf ein serialisierbares View-DTO (ohne Baum-Knoten). */

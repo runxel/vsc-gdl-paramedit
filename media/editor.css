@@ -100,25 +100,6 @@ body {
 .row:hover .drag-handle { opacity: 0.8; }
 .drag-handle:active { cursor: grabbing; }
 
-/* b-prisma-Logo (themenabhängig). Feste Maße, da die SVGs width/height="100%"
-   haben und sonst auf 0 Breite kollabieren könnten. */
-.logo {
-	height: 24px;
-	width: 24px;
-	margin-right: 8px;
-	flex: 0 0 auto;
-	line-height: 0;
-}
-.logo svg, .logo img { width: 24px; height: 24px; display: block; }
-/* Standard (helles/unbekanntes Theme): helles Logo zeigen, dunkles verstecken. */
-.logo-dark { display: none; }
-.logo-light { display: inline-block; }
-/* Dunkles Theme / High-Contrast-Dunkel: dunkles Logo zeigen. */
-body.vscode-dark .logo-light,
-body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-light { display: none; }
-body.vscode-dark .logo-dark,
-body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-dark { display: inline-block; }
-
 /* Steuer-Buttons (verschieben/löschen) */
 .controls { display: flex; gap: 2px; }
 .icon-btn, #addBtn, #addGroupBtn, #addSeparatorBtn, .array-toggle, .chip {
