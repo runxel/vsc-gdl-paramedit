@@ -130,6 +130,10 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-dark { display:
 	border-radius: 3px;
 }
 .icon-btn { padding: 1px 4px; font-size: 0.85em; opacity: 0.55; }
+/* „In Array umwandeln" (⊞): deutlich größer als die übrigen Icon-Buttons.
+   margin-left:auto hält ihn am rechten Rand der Wert-Spalte — auch bei
+   schmalen Werten (Checkbox), damit die Buttons zeilenübergreifend fluchten. */
+.icon-btn.array-make { padding: 2px 7px; font-size: 1.15em; line-height: 1; opacity: 0.7; margin-left: auto; }
 .row:hover .icon-btn { opacity: 1; }
 .icon-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
 
@@ -146,9 +150,20 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-dark { display:
 	padding: 2px 4px;
 	font-size: 0.85em;
 	color: var(--vscode-dropdown-foreground);
-	background: var(--vscode-dropdown-background);
-	border: 1px solid var(--vscode-dropdown-border, transparent);
 	border-radius: 3px;
+	transition: border-color 0.1s, background 0.1s;
+	/* wie .desc/.val/.pname: dezent bis Hover/Fokus, kein permanenter Rahmen */
+	background: transparent;
+	border: 1px solid transparent;
+}
+.row:hover .type-select {
+	border-color: var(--vscode-input-border, rgba(128, 128, 128, 0.35));
+	background: var(--vscode-dropdown-background);
+}
+.type-select:focus {
+	outline: none; /* Standard-Fokus-Outline des Webviews (Akzentfarbe) unterdrücken */
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-dropdown-background);
 }
 .title-text {
 	width: 100%;
@@ -179,7 +194,8 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-dark { display:
 }
 
 .pname { font-family: var(--vscode-editor-font-family, monospace); }
-.pname.bold { font-weight: 700; }
+/* ParFlg_BoldName: Name, Beschreibung und Wert fett darstellen. */
+.row.bold .pname, .row.bold .desc, .row.bold .val { font-weight: 700; }
 
 /* Dictionary-Wert: nicht editierbar, nur Hinweis-Badge. */
 .dict-badge {
@@ -222,8 +238,21 @@ body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-dark { display:
 	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.15));
 }
 
+/* Fixe Parameter (Fix vom Subtype vorgegeben, nicht editierbar):
+   blaue Zeile — gleiche Darstellung wie der Parameter-Editor in Archicad. */
+.row.fix .pname,
+.row.fix .desc,
+.row.fix .val,
+.row.fix .title-text,
+.row.fix .type-select {
+	color: var(--vscode-textLink-foreground, #3794ff);
+}
+
 /* Flag-Chips (klickbar) */
 .chip { padding: 0 6px; font-size: 0.74em; border-color: var(--vscode-panel-border); color: var(--vscode-descriptionForeground); }
+/* Einheitliche Chip-Größe für Buchstaben UND SVG-Icons (Hide/Child). */
+.chip { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; min-height: 15px; }
+.chip svg { display: block; }
 .chip:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
 .chip.active {
 	color: var(--vscode-button-foreground);
