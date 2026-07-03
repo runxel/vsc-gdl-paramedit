@@ -9,6 +9,8 @@ body {
 	font-size: var(--vscode-font-size);
 	color: var(--vscode-foreground);
 	background: var(--vscode-editor-background);
+	--first-col: 78px;
+	/* Breite der ersten Spalte */
 }
 
 #toolbar {
@@ -91,7 +93,7 @@ body {
 
 .row {
 	display: grid;
-	grid-template-columns: 118px auto 188px 116px 4fr 3fr;
+	grid-template-columns: var(--first-col) auto 188px 116px 4fr 3fr;
 	align-items: center;
 	gap: 8px;
 	padding: 3px 12px;
@@ -119,7 +121,7 @@ body {
 .row.title {
 	/* Spalte 2 = Flags (nur Hidden-Chip sichtbar, Rest Platzhalter) — dadurch
 	   gleiche Spaltenbreite wie in Parameterzeilen und die Namen fluchten. */
-	grid-template-columns: 118px auto 150px 1fr;
+	grid-template-columns: var(--first-col) auto 150px 1fr;
 	margin-top: 10px;
 	padding: 6px 12px;
 	background: var(--vscode-sideBarSectionHeader-background, rgba(127, 127, 127, 0.12));
@@ -128,7 +130,7 @@ body {
 
 /* Trennbalken: dezenter als ein Titel, mit horizontaler Linie statt Überschrift. */
 .row.separator {
-	grid-template-columns: 118px 150px 1fr;
+	grid-template-columns: var(--first-col) 150px 1fr;
 	margin: 4px 0;
 	padding: 4px 12px;
 	align-items: center;
@@ -482,11 +484,10 @@ body {
 	color: var(--vscode-descriptionForeground);
 }
 
-/* Etwas Luft zwischen Papierkorb und Flag-Chips (zusätzlich zum Grid-Gap). */
+/* Links reicht der Grid-Gap als Abstand zum Papierkorb; rechts etwas Luft. */
 .flags {
 	display: flex;
 	gap: 4px;
-	margin-left: 6px;
 	margin-right: 6px;
 }
 
