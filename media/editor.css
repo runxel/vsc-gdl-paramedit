@@ -23,15 +23,40 @@ body {
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
-#filter {
+#filterWrap {
+	position: relative;
 	flex: 0 0 320px;
 	max-width: 50%;
-	padding: 4px 8px;
+}
+
+#filter {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 4px 26px 4px 8px; /* rechts Platz für den Löschen-Button */
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 3px;
 }
+
+/* Löschen-Button (✕) im Filterfeld, nur sichtbar wenn Text eingegeben ist */
+#filterClear {
+	position: absolute;
+	top: 50%;
+	right: 4px;
+	transform: translateY(-50%);
+	padding: 0 4px;
+	font: inherit;
+	font-size: 0.85em;
+	line-height: 1.4;
+	cursor: pointer;
+	color: var(--vscode-input-foreground);
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	opacity: 0.6;
+}
+#filterClear:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
 
 .muted { color: var(--vscode-descriptionForeground); }
 

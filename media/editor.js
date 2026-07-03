@@ -8,6 +8,7 @@
 
 	const listEl = document.getElementById('list');
 	const filterEl = document.getElementById('filter');
+	const filterClearEl = document.getElementById('filterClear');
 	const countEl = document.getElementById('count');
 	const errorEl = document.getElementById('error');
 	const noticeEl = document.getElementById('notice');
@@ -108,12 +109,27 @@
 	}
 
 	filterEl.addEventListener('input', render);
+	// Esc im Filterfeld leert den Filter (statt z. B. den Fokus zu verlieren).
+	filterEl.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape' && filterEl.value) {
+			e.preventDefault();
+			e.stopPropagation();
+			clearFilter();
+		}
+	});
+	filterClearEl.addEventListener('click', () => { clearFilter(); filterEl.focus(); });
+
+	function clearFilter() {
+		filterEl.value = '';
+		render();
+	}
 	addBtn.addEventListener('click', addParam);
 	document.getElementById('addGroupBtn').addEventListener('click', addGroup);
 	document.getElementById('addSeparatorBtn').addEventListener('click', addSeparator);
 
 	function render() {
 		const q = filterEl.value.trim().toLowerCase();
+		filterClearEl.hidden = !filterEl.value;
 		listEl.textContent = '';
 		let shown = 0;
 		for (const p of params) {

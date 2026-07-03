@@ -249,7 +249,10 @@ class ParamEditorProvider {
 </head>
 <body>
 	<div id="toolbar">
-		<input id="filter" type="text" placeholder="Filtern (Name oder Beschreibung)…">
+		<span id="filterWrap">
+			<input id="filter" type="text" placeholder="Filtern (Name oder Beschreibung)…">
+			<button id="filterClear" title="Filter löschen (Esc)" hidden>✕</button>
+		</span>
 		<button id="addBtn" title="Neuen Parameter am Ende hinzufügen">+ Parameter</button>
 		<button id="addGroupBtn" title="Neue Gruppen-Überschrift (Title) hinzufügen">+ Gruppe</button>
 		<button id="addSeparatorBtn" title="Neuen Trennbalken (Separator) hinzufügen">+ Trennlinie</button>
