@@ -4,3 +4,7 @@ test/**
 .DS_Store
 SESSION_STATUS.md
 **/*.bak
+.claude/**
+CLAUDE.md
+.gitignore
+dist/**

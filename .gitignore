@@ -4,10 +4,9 @@
 # Node
 node_modules/
 
-# Build-Artefakte (Extension-Pakete werden als GitHub-Release bereitgestellt)
-# Ausnahme: die jeweils aktuelle .vsix in dist/ wird zum direkten Download mitgeliefert.
+# Build artifacts
 *.vsix
-!dist/*.vsix
+dist/
 
 # Internes Arbeits-/Statusdokument (nicht öffentlich)
 SESSION_STATUS.md
