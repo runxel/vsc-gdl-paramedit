@@ -82,7 +82,7 @@ body {
 
 .row {
 	display: grid;
-	grid-template-columns: 118px 116px 188px 1fr 178px auto;
+	grid-template-columns: 118px auto 188px 116px 4fr 3fr;
 	align-items: center;
 	gap: 8px;
 	padding: 3px 12px;
@@ -97,7 +97,9 @@ body {
 .row.drop-target { box-shadow: inset 0 2px 0 0 var(--vscode-focusBorder); }
 
 .row.title {
-	grid-template-columns: 118px 150px 1fr;
+	/* Spalte 2 = Flags (nur Hidden-Chip sichtbar, Rest Platzhalter) — dadurch
+	   gleiche Spaltenbreite wie in Parameterzeilen und die Namen fluchten. */
+	grid-template-columns: 118px auto 150px 1fr;
 	margin-top: 10px;
 	padding: 6px 12px;
 	background: var(--vscode-sideBarSectionHeader-background, rgba(127,127,127,0.12));
@@ -179,7 +181,6 @@ body {
 	padding: 3px 6px;
 	font-weight: 600;
 	letter-spacing: 0.04em;
-	text-transform: uppercase;
 	color: var(--vscode-descriptionForeground);
 	background: transparent;
 	border: 1px solid transparent;
@@ -237,7 +238,7 @@ body {
 	border-color: var(--vscode-focusBorder);
 	background: var(--vscode-input-background);
 }
-.val.number, .val.index { font-family: var(--vscode-editor-font-family, monospace); text-align: right; }
+.val.number, .val.index { font-family: var(--vscode-editor-font-family, monospace); }
 
 /* Ungültige Eingabe (Name mit unerlaubten Zeichen, keine Zahl): rot markiert. */
 .desc.invalid, .val.invalid, .pname.invalid,
@@ -262,6 +263,9 @@ body {
 .chip { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; min-height: 15px; }
 .chip svg { display: block; }
 .chip:hover { background: var(--vscode-toolbar-hoverBackground, rgba(127,127,127,0.2)); }
+/* Unsichtbare Platzhalter-Chips (z. B. in Titelzeilen): halten die Spalte
+   gleich breit, damit Gruppen-Namen mit Parameter-Namen fluchten. */
+.chip.ghost { visibility: hidden; pointer-events: none; }
 .chip.active {
 	color: var(--vscode-button-foreground);
 	background: var(--vscode-button-background);
@@ -317,7 +321,8 @@ body {
 	color: var(--vscode-descriptionForeground);
 }
 
-.flags { display: flex; gap: 4px; }
+/* Etwas Luft zwischen Papierkorb und Flag-Chips (zusätzlich zum Grid-Gap). */
+.flags { display: flex; gap: 4px; margin-left: 6px; margin-right: 6px; }
 .chip {
 	padding: 0 5px;
 	font-size: 0.72em;

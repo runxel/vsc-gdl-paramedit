@@ -153,8 +153,11 @@
 	}
 
 	function renderTitle(p) {
-		const row = el('div', 'row title' + (p.fix ? ' fix' : ''));
+		const row = el('div', 'row title' + (p.fix ? ' fix' : '') + (p.hidden ? ' hidden' : ''));
 		row.appendChild(renderControls(p));
+
+		// Nur das Hidden-Flag — vertikal bündig mit den Flags der Parameterzeilen
+		row.appendChild(renderFlags(p, ['hidden']));
 
 		const name = document.createElement('input');
 		name.type = 'text';
@@ -205,7 +208,18 @@
 
 		row.appendChild(renderControls(p));
 
-		// Typ-Dropdown
+		// Flags — wie im Archicad-Editor links, direkt neben dem Papierkorb
+		row.appendChild(renderFlags(p));
+
+		// Name (editierbar)
+		const name = document.createElement('input');
+		name.type = 'text';
+		name.className = 'pname';
+		name.value = p.name || '';
+		wireNameInput(name, p);
+		row.appendChild(name);
+
+		// Typ-Dropdown — zwischen Name und Beschreibung
 		const sel = document.createElement('select');
 		sel.className = 'type-select';
 		for (const t of TYPES) {
@@ -222,14 +236,6 @@
 		sel.addEventListener('change', () => send({ field: 'type', name: p.name, value: sel.value }));
 		row.appendChild(sel);
 
-		// Name (editierbar)
-		const name = document.createElement('input');
-		name.type = 'text';
-		name.className = 'pname';
-		name.value = p.name || '';
-		wireNameInput(name, p);
-		row.appendChild(name);
-
 		// Beschreibung (editierbar)
 		const desc = document.createElement('input');
 		desc.type = 'text';
@@ -242,8 +248,6 @@
 		// Wert
 		row.appendChild(renderValue(p));
 
-		// Flags
-		row.appendChild(renderFlags(p));
 		setRowContext(row, p);
 		makeRowDroppable(row, p);
 		return row;
@@ -383,14 +387,22 @@
 		return b;
 	}
 
-	function renderFlags(p) {
+	// only: optionale Liste von Flag-Keys — Titel bekommen z. B. nur 'hidden'.
+	// Ausgefilterte Flags werden als unsichtbare Platzhalter gerendert, damit
+	// die Flags-Spalte überall gleich breit ist und die Namen fluchten.
+	function renderFlags(p, only) {
 		const box = el('span', 'flags');
 		for (const f of FLAG_DEFS) {
-			const active = !!p[f.key];
-			const chip = el('button', 'chip chip-' + f.key + (active ? ' active' : ''));
+			const ghost = only && !only.includes(f.key);
+			const active = !ghost && !!p[f.key];
+			const chip = el('button', 'chip chip-' + f.key + (active ? ' active' : '') + (ghost ? ' ghost' : ''));
 			if (f.svg) chip.innerHTML = f.svg; else chip.textContent = f.label;
-			chip.title = f.title;
-			chip.addEventListener('click', () => send({ field: 'flag', name: p.name, flag: f.flag, value: !active }));
+			if (ghost) {
+				chip.tabIndex = -1;
+			} else {
+				chip.title = f.title;
+				chip.addEventListener('click', () => send({ field: 'flag', name: p.name, flag: f.flag, value: !active }));
+			}
 			box.appendChild(chip);
 		}
 		return box;
