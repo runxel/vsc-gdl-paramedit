@@ -27,12 +27,13 @@
 	// <Fix/> kann das GDL-Objekt zum Absturz bringen oder unkompilierbar machen.
 	// Fixe Parameter werden nur angezeigt: blaue Zeile, wie im Archicad-Editor.
 	// Reihenfolge wie im Archicad-Parametereditor: Hide, Child, Bold, Unique.
-	// Hide und Child bekommen SVG-Icons nach dem Archicad-Vorbild (oranges X
-	// bzw. Einrück-Pfeil); Bold/Unique bleiben Buchstaben.
+	// Hide und Child bekommen SVG-Icons nach dem Archicad-Vorbild (X bzw.
+	// Einrück-Pfeil); Bold/Unique bleiben Buchstaben. Das X erbt currentColor:
+	// inaktiv neutral grau, aktiv rot (per CSS, ohne Button-Hintergrund —
+	// Theme-Farben könnten sonst mit dem Icon kollidieren).
 	const SVG_HIDDEN =
 		'<svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">' +
-		'<path d="M3 3 13 13 M13 3 3 13" stroke="#fdfdfd" stroke-width="5.5" stroke-linecap="round"/>' +
-		'<path d="M3 3 13 13 M13 3 3 13" stroke="#e8642c" stroke-width="3" stroke-linecap="round"/></svg>';
+		'<path d="M3 3 13 13 M13 3 3 13" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>';
 	const SVG_CHILD =
 		'<svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true" fill="none" ' +
 		'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
@@ -386,7 +387,7 @@
 		const box = el('span', 'flags');
 		for (const f of FLAG_DEFS) {
 			const active = !!p[f.key];
-			const chip = el('button', 'chip' + (active ? ' active' : ''));
+			const chip = el('button', 'chip chip-' + f.key + (active ? ' active' : ''));
 			if (f.svg) chip.innerHTML = f.svg; else chip.textContent = f.label;
 			chip.title = f.title;
 			chip.addEventListener('click', () => send({ field: 'flag', name: p.name, flag: f.flag, value: !active }));
