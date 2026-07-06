@@ -10,7 +10,30 @@ body {
 	color: var(--vscode-foreground);
 	background: var(--vscode-editor-background);
 	--first-col: 78px;
-	/* Breite der ersten Spalte */
+	/* Breite der ersten Spalte (Steuer-Buttons) */
+	/* Spaltenbreiten — über die Griffe in der Kopfzeile verstellbar
+	   (das Webview setzt sie dann als Inline-Variablen auf <body>). */
+	--col-name: 188px;
+	--col-type: 116px;
+	--col-desc: 300px;
+	/* Untergrenzen: schmaler werden die Spalten nie — darunter scrollt die
+	   Ansicht horizontal, statt das Layout zusammenzuquetschen. */
+	--min-name: 90px;
+	--min-type: 82px;
+	--min-desc: 110px;
+	--min-val: 130px;
+	/* --flags-w wird vom Webview gemessen (Breite der Flag-Chips) und fließt
+	   in die Mindestbreite der Zeilen ein; 134px ist nur der Fallback. */
+}
+
+/* Mindestbreite der ganzen Ansicht: erste Spalte + Flags + Spalten-Minima +
+   5 Grid-Gaps (40px) + horizontales Padding (24px). Wird das Panel schmaler,
+   erscheint ein horizontaler Scrollbalken statt gequetschter Spalten. */
+#toolbar,
+#colhead,
+#list {
+	box-sizing: border-box;
+	min-width: calc(var(--first-col) + var(--flags-w, 134px) + var(--min-name) + var(--min-type) + var(--min-desc) + var(--min-val) + 64px);
 }
 
 #toolbar {
@@ -91,13 +114,99 @@ body {
 	padding: 4px 0 24px;
 }
 
-.row {
+/* Zeilen UND Kopfzeile teilen sich dasselbe Grid — nur so fluchten die
+   Spaltenköpfe exakt mit den Spalten. Jede Spalte hat eine Wunschbreite
+   (per Griff verstellbar) und ein Minimum; die Wert-Spalte nimmt den Rest. */
+.row,
+#colhead {
 	display: grid;
-	grid-template-columns: var(--first-col) auto 188px 116px 4fr 3fr;
+	grid-template-columns: var(--first-col) auto minmax(var(--min-name), var(--col-name)) minmax(var(--min-type), var(--col-type)) minmax(var(--min-desc), var(--col-desc)) minmax(var(--min-val), 1fr);
 	align-items: center;
 	gap: 8px;
 	padding: 3px 12px;
 	border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+/* ── Spaltenkopf: klebt unter der Toolbar; die Griffe an den Zellrändern
+   verstellen die Spaltenbreite (Doppelklick setzt zurück). --toolbar-h wird
+   vom Webview gemessen (Toolbar-Höhe hängt von Font/Zoom ab). ── */
+#colhead {
+	position: sticky;
+	top: var(--toolbar-h, 41px);
+	z-index: 1;
+	background: var(--vscode-editor-background);
+	user-select: none;
+}
+
+.col-label {
+	position: relative;
+	padding: 3px 6px;
+	/* wie .pname/.desc, damit der Text mit den Feldern fluchtet */
+	font-size: 0.78em;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+/* Überschrift der Flags-Spalte: die (unsichtbaren) Ghost-Chips geben die
+   Breite vor, das Label „Darstellung" liegt darüber und zählt nicht mit. */
+.flags-head {
+	position: relative;
+}
+
+.flags-head-label {
+	position: absolute;
+	left: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-size: 0.78em;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+/* Unsichtbarer Mess-Span (Breite des längsten Parameternamens): gleiche
+   Schrift wie .pname; eine Zeile pro Name → Breite = längster Name.
+   Oben angepinnt und ohne Höhe, sonst verlängert er die Scroll-Fläche
+   der Seite (die Breitenmessung bleibt davon unberührt). */
+#measure {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 0;
+	overflow: hidden;
+	visibility: hidden;
+	white-space: pre;
+	font-family: var(--vscode-editor-font-family, monospace);
+}
+
+/* Resize-Griff am rechten Zellrand — liegt im Grid-Gap zwischen den Spalten. */
+.col-grip {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: -9px;
+	width: 9px;
+	cursor: col-resize;
+	touch-action: none;
+}
+
+.col-grip::before {
+	content: '';
+	position: absolute;
+	top: 2px;
+	bottom: 2px;
+	left: 4px;
+	width: 1px;
+	background: var(--vscode-panel-border);
+}
+
+.col-grip:hover::before,
+.col-grip:active::before {
+	left: 3px;
+	width: 3px;
+	background: var(--vscode-focusBorder);
 }
 
 .row:hover {
@@ -119,18 +228,23 @@ body {
 }
 
 .row.title {
-	/* Spalte 2 = Flags (nur Hidden-Chip sichtbar, Rest Platzhalter) — dadurch
-	   gleiche Spaltenbreite wie in Parameterzeilen und die Namen fluchten. */
-	grid-template-columns: var(--first-col) auto 150px 1fr;
+	/* Nutzt dasselbe Grid wie Parameterzeilen (Spalte 2 = Flags: nur der
+	   Hidden-Chip sichtbar, Rest Platzhalter) — dadurch fluchten die Namen
+	   und die Breiten-Griffe wirken auch hier. Die Überschrift überspannt
+	   Typ-, Beschreibungs- und Wert-Spalte. */
 	margin-top: 10px;
 	padding: 6px 12px;
 	background: var(--vscode-sideBarSectionHeader-background, rgba(127, 127, 127, 0.12));
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
+.row.title .title-text {
+	grid-column: 4 / -1;
+}
+
 /* Trennbalken: dezenter als ein Titel, mit horizontaler Linie statt Überschrift. */
 .row.separator {
-	grid-template-columns: var(--first-col) 150px 1fr;
+	grid-template-columns: var(--first-col) minmax(var(--min-name), var(--col-name)) 1fr;
 	margin: 4px 0;
 	padding: 4px 12px;
 	align-items: center;

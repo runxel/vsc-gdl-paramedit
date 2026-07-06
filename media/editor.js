@@ -106,6 +106,9 @@
 			render();
 		} else if (msg.type === 'notice') {
 			showNotice(msg.message);
+		} else if (msg.type === 'cols') {
+			// Gespeicherte Spaltenbreiten vom Extension-Host (globalState).
+			applyCols(msg.cols || {});
 		}
 	});
 
@@ -142,7 +145,128 @@
 		preventDefaultContextMenuItems: true,
 	});
 
+	// ── Verstellbare Spaltenbreiten: Griffe in der Kopfzeile setzen die
+	//    CSS-Variablen auf <body>; die Untergrenzen (--min-*) stehen im
+	//    Stylesheet. Gespeichert wird über den Extension-Host (globalState),
+	//    damit die Breiten für alle Dateien und Fenster gelten. ──
+	const COLS = [
+		{ label: 'Name', widthVar: '--col-name', minVar: '--min-name' },
+		{ label: 'Typ', widthVar: '--col-type', minVar: '--min-type' },
+		{ label: 'Beschreibung', widthVar: '--col-desc', minVar: '--min-desc' },
+	];
+
+	// Unsichtbarer Mess-Span: ermittelt die Breite des längsten Namens in der
+	// .pname-Schrift, damit die Name-Spalte nie schmaler wird als ihr Inhalt.
+	const measureEl = el('span');
+	measureEl.id = 'measure';
+	document.body.appendChild(measureEl);
+
+	// Die Name-Spalte ist mindestens so breit wie der längste Name — Namen
+	// sind ohnehin auf 32 Zeichen begrenzt, das bleibt also im Rahmen.
+	// Alle Namen in einem Span (eine Zeile pro Name, white-space: pre) messen:
+	// die Breite ist dann die der längsten Zeile — eine einzige Messung.
+	function updateNameMin() {
+		const meas = (names) => {
+			if (!names.length) return 0;
+			measureEl.textContent = names.join('\n');
+			return Math.ceil(measureEl.getBoundingClientRect().width);
+		};
+		const plain = meas(params.filter((p) => !p.child).map((p) => p.name || ''));
+		const child = meas(params.filter((p) => p.child).map((p) => p.name || ''));
+		// +14px Padding/Rahmen des Eingabefelds; Child-Zeilen sind 14px eingerückt.
+		const w = Math.max(plain, child ? child + 14 : 0) + 14;
+		document.body.style.setProperty('--min-name', Math.max(90, w) + 'px');
+	}
+
+	function initColumns() {
+		// Mess-Span bekommt exakt die Schrift der echten .pname-Eingabefelder —
+		// Inputs erben die Schriftgröße nicht automatisch vom Body, daher von
+		// einem unsichtbaren Probe-Input abgreifen statt raten.
+		const probe = document.createElement('input');
+		probe.className = 'pname';
+		probe.style.position = 'absolute';
+		probe.style.visibility = 'hidden';
+		document.body.appendChild(probe);
+		const pf = getComputedStyle(probe);
+		measureEl.style.fontFamily = pf.fontFamily;
+		measureEl.style.fontSize = pf.fontSize;
+		measureEl.style.letterSpacing = pf.letterSpacing;
+		probe.remove();
+
+		const head = document.getElementById('colhead');
+		head.appendChild(el('span')); // Platzhalter über den Steuer-Buttons
+		// Flags-Spalte „Darstellung" (wie im Archicad-Editor): Ghost-Chips
+		// halten die Spalte exakt so breit wie in den Zeilen, das Label liegt
+		// absolut darüber, damit es die Breite nicht beeinflusst.
+		const flagsHead = el('span', 'flags-head');
+		flagsHead.appendChild(renderFlags({}, []));
+		flagsHead.appendChild(el('span', 'flags-head-label', 'Darstellung'));
+		head.appendChild(flagsHead);
+		for (const c of COLS) head.appendChild(headCell(c));
+		head.appendChild(el('span', 'col-label', 'Wert')); // Rest-Spalte, ohne Griff
+
+		// Gemessene Breite der Flags-Spalte (+6px margin) → fließt in die
+		// Mindestbreite der Zeilen ein (ab der horizontal gescrollt wird).
+		const flags = head.querySelector('.flags');
+		document.body.style.setProperty('--flags-w', (flags.offsetWidth + 6) + 'px');
+
+		// Kopfzeile klebt direkt unter der Toolbar; deren Höhe hängt von
+		// Schriftgröße/Zoom ab, daher messen statt raten.
+		const toolbar = document.getElementById('toolbar');
+		const setTop = () => document.body.style.setProperty('--toolbar-h', toolbar.offsetHeight + 'px');
+		new ResizeObserver(setTop).observe(toolbar);
+		setTop();
+	}
+
+	function headCell(c) {
+		const cell = el('span', 'col-label', c.label);
+		const grip = el('span', 'col-grip');
+		grip.title = 'Ziehen: Spaltenbreite ändern — Doppelklick: zurücksetzen';
+		grip.addEventListener('pointerdown', (e) => {
+			e.preventDefault();
+			grip.setPointerCapture(e.pointerId);
+			const bodyStyle = getComputedStyle(document.body);
+			const min = parseFloat(bodyStyle.getPropertyValue(c.minVar)) || 60;
+			const startW = parseFloat(bodyStyle.getPropertyValue(c.widthVar)) || min;
+			const startX = e.clientX;
+			const onMove = (ev) => document.body.style.setProperty(
+				c.widthVar, Math.round(Math.max(min, startW + ev.clientX - startX)) + 'px');
+			const done = () => {
+				grip.removeEventListener('pointermove', onMove);
+				grip.removeEventListener('pointerup', done);
+				grip.removeEventListener('pointercancel', done);
+				saveCols();
+			};
+			grip.addEventListener('pointermove', onMove);
+			grip.addEventListener('pointerup', done);
+			grip.addEventListener('pointercancel', done);
+		});
+		grip.addEventListener('dblclick', () => {
+			document.body.style.removeProperty(c.widthVar); // zurück auf Standardbreite
+			saveCols();
+		});
+		cell.appendChild(grip);
+		return cell;
+	}
+
+	function applyCols(cols) {
+		for (const c of COLS) {
+			if (cols[c.widthVar]) document.body.style.setProperty(c.widthVar, cols[c.widthVar]);
+			else document.body.style.removeProperty(c.widthVar);
+		}
+	}
+
+	function saveCols() {
+		const cols = {};
+		for (const c of COLS) {
+			const v = document.body.style.getPropertyValue(c.widthVar);
+			if (v) cols[c.widthVar] = v;
+		}
+		vscode.postMessage({ type: 'colWidths', cols });
+	}
+
 	function render() {
+		updateNameMin();
 		const q = filterEl.value.trim().toLowerCase();
 		filterClearEl.hidden = !filterEl.value;
 		listEl.textContent = '';
@@ -688,5 +812,6 @@
 		return b;
 	}
 
+	initColumns();
 	vscode.postMessage({ type: 'ready' });
 })();

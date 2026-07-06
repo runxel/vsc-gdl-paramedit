@@ -2,7 +2,7 @@
   "name": "gdl-parameter-editor",
   "displayName": "GDL Parameter Editor",
   "description": "Visual Editor for GDL `paramlist.xml` files.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "runxel",
   "repository": {
     "type": "git",

@@ -186,7 +186,14 @@ class ParamEditorProvider {
 			'arrayAddRow', 'arrayDelRow', 'arrayAddCol', 'arrayDelCol', 'arrayCreate', 'arrayRemove'];
 
 		webview.onDidReceiveMessage(async (msg) => {
-			if (msg.type === 'ready') { render(); return; }
+			if (msg.type === 'ready') {
+				// Gespeicherte Spaltenbreiten mitschicken, bevor gerendert wird.
+				webview.postMessage({ type: 'cols', cols: this.context.globalState.get('colWidths') || {} });
+				render();
+				return;
+			}
+			// Spaltenbreiten global merken (gelten für alle Dateien und Fenster).
+			if (msg.type === 'colWidths') { this.context.globalState.update('colWidths', msg.cols || {}); return; }
 			// Auswahl-Zustand des Webviews (für Kontextmenü „Kopieren").
 			if (msg.type === 'selection') { this.selections.set(document.uri.toString(), msg.names || []); return; }
 			// Cmd/Ctrl+C im Webview: Auswahl in die Zwischenablage.
@@ -329,6 +336,7 @@ class ParamEditorProvider {
 	</div>
 	<div id="error" class="error" hidden></div>
 	<div id="notice" class="notice" hidden></div>
+	<div id="colhead"></div>
 	<div id="list"></div>
 	<script nonce="${nonce}" src="${js}"></script>
 </body>
