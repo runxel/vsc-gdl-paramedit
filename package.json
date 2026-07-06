@@ -2,7 +2,7 @@
   "name": "gdl-parameter-editor",
   "displayName": "GDL Parameter Editor",
   "description": "Visual Editor for GDL `paramlist.xml` files.",
-  "version": "0.6.7",
+  "version": "0.7.0",
   "publisher": "runxel",
   "repository": {
     "type": "git",
@@ -42,12 +42,28 @@
     },
     "commands": [
       {
+        "command": "gdl.parameterEditor.copy",
+        "title": "Kopieren"
+      },
+      {
+        "command": "gdl.parameterEditor.paste",
+        "title": "Einfügen"
+      },
+      {
         "command": "gdl.parameterEditor.duplicate",
-        "title": "Duplicate"
+        "title": "Duplizieren"
       }
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "gdl.parameterEditor.copy",
+          "when": "false"
+        },
+        {
+          "command": "gdl.parameterEditor.paste",
+          "when": "false"
+        },
         {
           "command": "gdl.parameterEditor.duplicate",
           "when": "false"
@@ -55,8 +71,19 @@
       ],
       "webview/context": [
         {
+          "command": "gdl.parameterEditor.copy",
+          "when": "webviewId == 'gdl.parameterEditor' && webviewSection == 'param'",
+          "group": "1_cutcopy@1"
+        },
+        {
+          "command": "gdl.parameterEditor.paste",
+          "when": "webviewId == 'gdl.parameterEditor' && (webviewSection == 'param' || webviewSection == 'list')",
+          "group": "1_cutcopy@2"
+        },
+        {
           "command": "gdl.parameterEditor.duplicate",
-          "when": "webviewId == 'gdl.parameterEditor' && webviewSection == 'param'"
+          "when": "webviewId == 'gdl.parameterEditor' && webviewSection == 'param'",
+          "group": "1_cutcopy@3"
         }
       ]
     }

@@ -46,8 +46,12 @@
 	];
 
 	let params = [];
-	let dragName = null; // aktuell gezogener Parameter (Drag & Drop)
+	let dragNames = null; // aktuell gezogene Parameter (Drag & Drop, ggf. Mehrfachauswahl)
 	const expanded = new Set(); // Namen der aufgeklappten Array-Parameter
+	const selected = new Set(); // Namen der ausgewählten Zeilen (Mehrfachauswahl)
+	let anchorName = null; // Anker der Bereichsauswahl (Shift-Klick)
+	const rowByName = new Map(); // Name → gerenderte Zeile (Auswahl-/Drag-Styling)
+	let lastShown = 0; // zuletzt gerenderte Zeilenanzahl (für die Zähler-Anzeige)
 
 	// ── Client-seitige Validierung (Spiegel der Datenkern-Regeln, nur für
 	//    sofortiges Feedback; der Extension-Host bleibt die maßgebliche Prüfung) ──
@@ -131,10 +135,19 @@
 	document.getElementById('addGroupBtn').addEventListener('click', addGroup);
 	document.getElementById('addSeparatorBtn').addEventListener('click', addSeparator);
 
+	// Kontextmenü auch abseits der Zeilen (leere Fläche): dort gibt es nur
+	// „Einfügen" — ohne paramName landet der Inhalt am Listenende.
+	document.body.dataset.vscodeContext = JSON.stringify({
+		webviewSection: 'list',
+		preventDefaultContextMenuItems: true,
+	});
+
 	function render() {
 		const q = filterEl.value.trim().toLowerCase();
 		filterClearEl.hidden = !filterEl.value;
 		listEl.textContent = '';
+		rowByName.clear();
+		pruneSelection();
 		let shown = 0;
 		for (const p of params) {
 			if (q && !matches(p, q)) continue;
@@ -144,7 +157,13 @@
 			listEl.appendChild(renderParam(p));
 			if (p.isArray && expanded.has(p.name)) listEl.appendChild(renderArrayPanel(p));
 		}
-		countEl.textContent = shown + ' / ' + params.length + ' Parameter';
+		lastShown = shown;
+		updateCount();
+	}
+
+	function updateCount() {
+		countEl.textContent = lastShown + ' / ' + params.length + ' Parameter' +
+			(selected.size ? ' · ' + selected.size + ' ausgewählt' : '');
 	}
 
 	function matches(p, q) {
@@ -175,6 +194,7 @@
 		commitOnChange(cap, () => { send({ field: 'description', name: p.name, value: cap.value }); flash(cap); });
 		row.appendChild(cap);
 
+		wireRowSelection(row, p);
 		setRowContext(row, p);
 		makeRowDroppable(row, p);
 		return row;
@@ -197,6 +217,7 @@
 		line.title = 'Trennbalken (ohne Überschrift)';
 		row.appendChild(line);
 
+		wireRowSelection(row, p);
 		setRowContext(row, p);
 		makeRowDroppable(row, p);
 		return row;
@@ -248,6 +269,7 @@
 		// Wert
 		row.appendChild(renderValue(p));
 
+		wireRowSelection(row, p);
 		setRowContext(row, p);
 		makeRowDroppable(row, p);
 		return row;
@@ -259,16 +281,43 @@
 		handle.title = 'Ziehen zum Verschieben';
 		handle.draggable = true;
 		handle.addEventListener('dragstart', (e) => {
-			dragName = p.name;
+			// Gehört die Zeile zur Mehrfachauswahl, wandert die GANZE Auswahl mit.
+			dragNames = selected.has(p.name) && selected.size > 1 ? orderedSelection() : [p.name];
 			e.dataTransfer.effectAllowed = 'move';
-			e.dataTransfer.setData('text/plain', p.name);
+			e.dataTransfer.setData('text/plain', dragNames.join('\n'));
+			for (const n of dragNames) {
+				const r = rowByName.get(n);
+				if (r) r.classList.add('dragging');
+			}
 		});
-		handle.addEventListener('dragend', () => { dragName = null; });
+		handle.addEventListener('dragend', () => {
+			dragNames = null;
+			for (const r of rowByName.values()) r.classList.remove('dragging');
+		});
 		c.appendChild(handle);
 		c.appendChild(iconBtn('＋', 'Neuen Parameter unter diesem einfügen', () =>
 			send({ field: 'add', paramType: 'Length', newName: makeUniqueName(), afterName: p.name })));
-		c.appendChild(iconBtn('🗑', 'Löschen (rückgängig mit Cmd+Z)', () => send({ field: 'delete', name: p.name })));
+		// Fixe Parameter (blau, vom Subtype vorgegeben) sind nicht löschbar —
+		// sie bekommen erst gar keinen Papierkorb.
+		if (!p.fix) {
+			c.appendChild(iconBtn('🗑',
+				'Löschen — bei Mehrfachauswahl alle ausgewählten (rückgängig mit Cmd+Z)',
+				() => requestDelete(selected.has(p.name) && selected.size > 1 ? orderedSelection() : [p.name])));
+		}
 		return c;
+	}
+
+	// Löscht die genannten Parameter in EINEM Schritt (ein Undo) — fixe
+	// Parameter (blau) werden ausgefiltert und bleiben erhalten.
+	function requestDelete(names) {
+		const fixNames = new Set(params.filter((x) => x.fix).map((x) => x.name));
+		const deletable = names.filter((n) => !fixNames.has(n));
+		if (deletable.length !== names.length) {
+			showNotice('Fixe Parameter (blau, vom Subtype vorgegeben) können nicht gelöscht werden' +
+				(deletable.length ? ' — sie bleiben erhalten.' : '.'));
+		}
+		if (!deletable.length) return;
+		send({ field: 'delete', names: deletable });
 	}
 
 	function makeUniqueName(base) {
@@ -279,9 +328,108 @@
 		return name;
 	}
 
-	// VS-Code-natives Kontextmenü (Rechtsklick): „Duplizieren" — der Befehl
-	// ist in package.json unter webview/context registriert und bekommt
-	// dieses Objekt (inkl. paramName) übergeben.
+	// ── Mehrfachauswahl: Klick = Einzelauswahl, Cmd/Ctrl-Klick = umschalten,
+	//    Shift-Klick = Bereich, Esc = aufheben. Die Auswahl wird dem Extension-
+	//    Host gemeldet, damit „Kopieren" im Kontextmenü die ganze Auswahl
+	//    erwischt; gezogen wird sie als Block (siehe Drag & Drop unten). ──
+
+	/** Auswahl in Dokument-Reihenfolge (params ist die Wahrheit, nicht die Klick-Reihenfolge). */
+	function orderedSelection() {
+		return params.filter((p) => selected.has(p.name)).map((p) => p.name);
+	}
+
+	function postSelection() {
+		vscode.postMessage({ type: 'selection', names: orderedSelection() });
+		updateCount();
+	}
+
+	function updateSelectionClasses() {
+		for (const [n, r] of rowByName) r.classList.toggle('selected', selected.has(n));
+	}
+
+	function clearSelection() {
+		if (!selected.size) return;
+		selected.clear();
+		anchorName = null;
+		updateSelectionClasses();
+		postSelection();
+	}
+
+	/** Entfernt verwaiste Namen (nach Löschen/Umbenennen) aus der Auswahl. */
+	function pruneSelection() {
+		const names = new Set(params.map((p) => p.name));
+		let changed = false;
+		for (const n of [...selected]) if (!names.has(n)) { selected.delete(n); changed = true; }
+		if (anchorName && !names.has(anchorName)) anchorName = null;
+		if (changed) postSelection();
+	}
+
+	function wireRowSelection(row, p) {
+		rowByName.set(p.name, row);
+		if (selected.has(p.name)) row.classList.add('selected');
+		row.addEventListener('click', (e) => {
+			if (e.target.closest('input, select, button')) return; // Editierfelder nicht kapern
+			if (e.shiftKey && anchorName) {
+				const names = params.map((x) => x.name);
+				let a = names.indexOf(anchorName);
+				const b = names.indexOf(p.name);
+				if (a < 0) a = b;
+				if (!(e.metaKey || e.ctrlKey)) selected.clear();
+				for (let i = Math.min(a, b); i <= Math.max(a, b); i++) selected.add(names[i]);
+			} else if (e.metaKey || e.ctrlKey) {
+				if (selected.has(p.name)) selected.delete(p.name); else selected.add(p.name);
+				anchorName = p.name;
+			} else {
+				// Einfacher Klick: nur diese Zeile — erneuter Klick hebt die Einzelauswahl auf.
+				const wasOnly = selected.size === 1 && selected.has(p.name);
+				selected.clear();
+				if (!wasOnly) selected.add(p.name);
+				anchorName = wasOnly ? null : p.name;
+			}
+			updateSelectionClasses();
+			postSelection();
+		});
+	}
+
+	// Tastatur: Cmd/Ctrl+C kopiert die Auswahl als XML in die Zwischenablage,
+	// Cmd/Ctrl+V fügt Parameter aus der Zwischenablage ein (hinter der Auswahl),
+	// Cmd/Ctrl+A wählt alle sichtbaren Zeilen, Esc hebt die Auswahl auf.
+	// In Eingabefeldern bleibt das native Verhalten unangetastet.
+	document.addEventListener('keydown', (e) => {
+		const inField = e.target && e.target.closest && e.target.closest('input, select, textarea');
+		if (e.key === 'Escape' && !inField) { clearSelection(); return; }
+		// Entf (bzw. Cmd/Ctrl+Backspace) löscht die Auswahl — fixe Parameter
+		// filtert requestDelete heraus.
+		if (!inField && selected.size &&
+			(e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey)))) {
+			e.preventDefault();
+			requestDelete(orderedSelection());
+			return;
+		}
+		if (!(e.metaKey || e.ctrlKey) || inField) return;
+		const k = (e.key || '').toLowerCase();
+		if (k === 'c') {
+			const names = orderedSelection();
+			if (!names.length) return;
+			e.preventDefault();
+			vscode.postMessage({ type: 'copy', names });
+		} else if (k === 'v') {
+			e.preventDefault();
+			const sel = orderedSelection();
+			const afterName = sel.length ? sel[sel.length - 1]
+				: (params.length ? params[params.length - 1].name : null);
+			send({ field: 'paste', afterName });
+		} else if (k === 'a') {
+			e.preventDefault();
+			for (const n of rowByName.keys()) selected.add(n); // nur sichtbare (gefilterte) Zeilen
+			updateSelectionClasses();
+			postSelection();
+		}
+	});
+
+	// VS-Code-natives Kontextmenü (Rechtsklick): „Duplizieren", „Kopieren",
+	// „Einfügen" — die Befehle sind in package.json unter webview/context
+	// registriert und bekommen dieses Objekt (inkl. paramName) übergeben.
 	function setRowContext(row, p) {
 		row.dataset.vscodeContext = JSON.stringify({
 			webviewSection: 'param',
@@ -290,10 +438,11 @@
 		});
 	}
 
-	// ── Drag & Drop: Zeile auf eine andere ziehen → davor einsortieren ──
+	// ── Drag & Drop: Zeile(n) auf eine andere ziehen → davor einsortieren.
+	//    Eine Mehrfachauswahl wandert als zusammenhängender Block. ──
 	function makeRowDroppable(row, p) {
 		row.addEventListener('dragover', (e) => {
-			if (!dragName || dragName === p.name) return;
+			if (!dragNames || dragNames.includes(p.name)) return;
 			e.preventDefault();
 			e.dataTransfer.dropEffect = 'move';
 			row.classList.add('drop-target');
@@ -302,17 +451,17 @@
 		row.addEventListener('drop', (e) => {
 			e.preventDefault();
 			row.classList.remove('drop-target');
-			if (dragName && dragName !== p.name) reorderTo(dragName, p.name);
+			if (dragNames && !dragNames.includes(p.name)) reorderTo(dragNames, p.name);
 		});
 	}
-	function reorderTo(fromName, beforeName) {
-		const names = params.map((p) => p.name);
-		const fi = names.indexOf(fromName);
-		if (fi < 0) return;
-		names.splice(fi, 1);
-		const bi = names.indexOf(beforeName);
-		names.splice(bi < 0 ? names.length : bi, 0, fromName);
-		send({ field: 'reorder', names });
+	function reorderTo(fromNames, beforeName) {
+		// Bewegte Zeilen in Dokument-Reihenfolge als Block vor dem Ziel einfügen.
+		const moving = params.map((p) => p.name).filter((n) => fromNames.includes(n));
+		if (!moving.length) return;
+		const rest = params.map((p) => p.name).filter((n) => !fromNames.includes(n));
+		const bi = rest.indexOf(beforeName);
+		rest.splice(bi < 0 ? rest.length : bi, 0, ...moving);
+		send({ field: 'reorder', names: rest });
 	}
 
 	function renderValue(p) {

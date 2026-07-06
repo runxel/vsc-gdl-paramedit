@@ -54,8 +54,8 @@ function activate(context) {
 
 	const provider = new ParamEditorProvider(context);
 
-	// Kontextmenü-Befehl „Duplizieren" (Rechtsklick auf eine Zeile im Webview).
-	// ctx ist das data-vscode-context-Objekt der angeklickten Zeile.
+	// Kontextmenü-Befehle (Rechtsklick auf eine Zeile im Webview).
+	// ctx ist das data-vscode-context-Objekt des angeklickten Elements.
 	context.subscriptions.push(
 		vscode.commands.registerCommand('gdl.parameterEditor.duplicate', async (ctx) => {
 			const document = provider.activeDocument;
@@ -65,6 +65,27 @@ function activate(context) {
 				await provider.applyEdit(document, { field: 'duplicate', name });
 			} catch (e) {
 				vscode.window.showErrorMessage('Duplizieren fehlgeschlagen: ' + String(e && e.message || e));
+			}
+		}),
+		// „Kopieren": legt die Auswahl (bzw. die angeklickte Zeile) als XML-
+		// Fragment in die System-Zwischenablage — zum Übertragen von Parametern
+		// zwischen zwei paramlist.xml-Dateien (auch über Fenster hinweg).
+		vscode.commands.registerCommand('gdl.parameterEditor.copy', async (ctx) => {
+			const document = provider.activeDocument;
+			const name = ctx && ctx.paramName;
+			if (!document || !name) return;
+			const sel = provider.selections.get(document.uri.toString()) || [];
+			await provider.copyToClipboard(document, sel.includes(name) ? sel : [name]);
+		}),
+		// „Einfügen": liest Parameter-XML aus der Zwischenablage und fügt es
+		// nach der angeklickten Zeile ein (ohne paramName: am Listenende).
+		vscode.commands.registerCommand('gdl.parameterEditor.paste', async (ctx) => {
+			const document = provider.activeDocument;
+			if (!document) return;
+			try {
+				await provider.applyEdit(document, { field: 'paste', afterName: (ctx && ctx.paramName) || null });
+			} catch (e) {
+				vscode.window.showErrorMessage('Einfügen fehlgeschlagen: ' + String(e && e.message || e));
 			}
 		})
 	);
@@ -99,6 +120,23 @@ class ParamEditorProvider {
 		// Dokument des zuletzt aktiven Editor-Panels — Ziel für Kontextmenü-
 		// Befehle (Rechtsklick geht immer im fokussierten Webview auf).
 		this.activeDocument = null;
+		// Aktuelle Mehrfachauswahl je Dokument (vom Webview gemeldet) —
+		// damit „Kopieren" im Kontextmenü die ganze Auswahl erwischt.
+		this.selections = new Map();
+	}
+
+	/** Kopiert die genannten Parameter als XML-Fragment in die Zwischenablage. */
+	async copyToClipboard(document, names) {
+		if (!names || !names.length) return;
+		try {
+			const xml = P.extractParamsXml(P.parse(document.getText()), names);
+			if (!xml) return;
+			await vscode.env.clipboard.writeText(xml);
+			vscode.window.setStatusBarMessage(
+				names.length === 1 ? '1 Parameter kopiert' : names.length + ' Parameter kopiert', 3000);
+		} catch (e) {
+			vscode.window.showErrorMessage('Kopieren fehlgeschlagen: ' + String(e && e.message || e));
+		}
 	}
 
 	/**
@@ -138,16 +176,21 @@ class ParamEditorProvider {
 		});
 		panel.onDidDispose(() => {
 			changeSub.dispose();
+			this.selections.delete(document.uri.toString());
 			if (this.activeDocument === document) this.activeDocument = null;
 		});
 
 		// Felder, nach denen die Liste neu gerendert werden muss (Identität/Optik
 		// ändert sich). Value/Description nicht — das Eingabefeld zeigt es bereits.
-		const RERENDER = ['move', 'reorder', 'add', 'delete', 'duplicate', 'type', 'name', 'flag',
+		const RERENDER = ['move', 'reorder', 'add', 'delete', 'duplicate', 'paste', 'type', 'name', 'flag',
 			'arrayAddRow', 'arrayDelRow', 'arrayAddCol', 'arrayDelCol', 'arrayCreate', 'arrayRemove'];
 
 		webview.onDidReceiveMessage(async (msg) => {
 			if (msg.type === 'ready') { render(); return; }
+			// Auswahl-Zustand des Webviews (für Kontextmenü „Kopieren").
+			if (msg.type === 'selection') { this.selections.set(document.uri.toString(), msg.names || []); return; }
+			// Cmd/Ctrl+C im Webview: Auswahl in die Zwischenablage.
+			if (msg.type === 'copy') { await this.copyToClipboard(document, msg.names || []); return; }
 			if (msg.type !== 'edit') return;
 			try {
 				const newText = await this.applyEdit(document, msg);
@@ -185,7 +228,22 @@ class ParamEditorProvider {
 			case 'flag': { const t = findTarget(); if (!t) return null; P.setFlag(t.node, msg.flag, !!msg.value); break; }
 			case 'move': P.moveParam(doc, msg.name, msg.delta); break;
 			case 'reorder': P.reorderParams(doc, msg.names || []); break;
-			case 'delete': P.deleteParam(doc, msg.name); break;
+			case 'delete': {
+				// Ein Name oder eine Mehrfachauswahl — in einem Undo-Schritt.
+				// Fixe Parameter (vom Subtype vorgegeben) sind nie löschbar;
+				// hier nochmals erzwungen, unabhängig vom Webview.
+				const all = P.getParameters(doc);
+				const wanted = msg.names && msg.names.length ? msg.names : [msg.name];
+				const deletable = wanted.filter((n) => {
+					const t = all.find((p) => p.name === n);
+					return t && !t.fix;
+				});
+				if (!deletable.length) {
+					throw new Error('Fixe Parameter (blau, vom Subtype vorgegeben) können nicht gelöscht werden.');
+				}
+				P.deleteParams(doc, deletable);
+				break;
+			}
 			case 'duplicate': {
 				const t = findTarget(); if (!t) return null;
 				// Namen sind eindeutig (case-insensitiv): "_new" anhängen,
@@ -195,6 +253,15 @@ class ParamEditorProvider {
 				let newName = mk('_new');
 				for (let n = 2; P.nameExists(doc, newName, null); n++) newName = mk('_new' + n);
 				P.duplicateParam(doc, t.name, newName);
+				break;
+			}
+			case 'paste': {
+				// Zwischenablage → Parameter: Namen werden bei Kollision eindeutig
+				// gemacht, <Fix/> wird entfernt (gilt nur für den Subtype der Quelldatei).
+				const clip = await vscode.env.clipboard.readText();
+				const frags = P.parseParamFragments(clip);
+				if (!frags.length) throw new Error('Die Zwischenablage enthält keine GDL-Parameter (XML aus „Kopieren").');
+				P.insertParams(doc, frags, msg.afterName || null);
 				break;
 			}
 			case 'add': {

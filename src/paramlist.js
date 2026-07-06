@@ -644,9 +644,15 @@ function moveParam(doc, name, delta) {
 
 /** Löscht einen Parameter samt seines vorausgehenden Blocks (inkl. Kommentar). */
 function deleteParam(doc, name) {
+	deleteParams(doc, [name]);
+}
+
+/** Löscht mehrere Parameter samt ihrer Blöcke in EINEM Schritt (ein Undo). */
+function deleteParams(doc, names) {
 	const paramsEl = findParametersElement(doc);
 	const { blocks, trailing } = splitBlocks(paramsEl);
-	const kept = blocks.filter((b) => getAttr(b.el.rawOpen, 'Name') !== name);
+	const gone = new Set(names);
+	const kept = blocks.filter((b) => !gone.has(getAttr(b.el.rawOpen, 'Name')));
 	assembleBlocks(paramsEl, kept, trailing);
 }
 
@@ -675,6 +681,86 @@ function duplicateParam(doc, name, newName) {
 	blocks.splice(i + 1, 0, { lead: [textNode(paramIndentWs(blocks))], el: copy });
 	assembleBlocks(paramsEl, blocks, trailing);
 	return copy;
+}
+
+// ── Kopieren & Einfügen über Dateigrenzen (System-Zwischenablage) ──
+//
+// Kopieren serialisiert die gewählten Parameter als rohes XML-Fragment;
+// Einfügen parst das Fragment und hängt die Elemente als neue Blöcke ein.
+// Da das Fragment reines LP_XMLConverter-XML ist, funktioniert der Transfer
+// zwischen beliebigen paramlist.xml-Dateien (auch über VS-Code-Fenster hinweg)
+// und bleibt für Menschen im Texteditor lesbar.
+
+/**
+ * Serialisiert die Parameter mit den gegebenen Namen als XML-Fragment
+ * (in Datei-Reihenfolge, mit Zeilenumbruch getrennt).
+ */
+function extractParamsXml(doc, names) {
+	const paramsEl = findParametersElement(doc);
+	if (!paramsEl) return '';
+	const wanted = new Set(names.map((n) => String(n).toLowerCase()));
+	return childElements(paramsEl)
+		.filter((e) => wanted.has((getAttr(e.rawOpen, 'Name') || '').toLowerCase()))
+		.map(serializeNode)
+		.join('\n');
+}
+
+/**
+ * Parst ein XML-Fragment (Zwischenablage) in Parameter-Elemente. Akzeptiert
+ * auch eine komplette Datei bzw. Sektion (steigt in <ParamSection> /
+ * <Parameters> ab). Liefert [], wenn der Text keine reine Parameterliste ist.
+ */
+function parseParamFragments(text) {
+	let s = String(text || '');
+	if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
+	if (!/^\s*</.test(s)) return [];
+	let root;
+	try { root = buildTree(tokenize(s)); } catch (e) { return []; }
+	let els = root.children.filter((c) => c.type === 'element');
+	if (els.length === 1 && els[0].name === 'ParamSection') els = [childElement(els[0], 'Parameters')].filter(Boolean);
+	if (els.length === 1 && els[0].name === 'Parameters') els = childElements(els[0]);
+	const isParam = (e) =>
+		(VALUE_TYPES.has(e.name) || e.name === 'Title' || e.name === 'Separator') &&
+		!!getAttr(e.rawOpen, 'Name');
+	return els.length > 0 && els.every(isParam) ? els : [];
+}
+
+/**
+ * Fügt kopierte Parameter-Elemente nach `afterName` ein (null = am Ende).
+ * Kollidierende Namen werden eindeutig gemacht (_copy, _copy2, …, unter
+ * Einhaltung des 32-Zeichen-Limits); <Fix/> wird entfernt — es gilt nur für
+ * den Subtype der QUELL-Datei und wäre in der Zieldatei falsch/gefährlich.
+ * Liefert die tatsächlich vergebenen Namen.
+ */
+function insertParams(doc, els, afterName) {
+	const paramsEl = findParametersElement(doc);
+	if (!paramsEl) throw new Error('Kein <Parameters>-Element');
+	const { blocks, trailing } = splitBlocks(paramsEl);
+	const indent = paramIndentWs(blocks);
+	const taken = new Set(blocks.map((b) => (getAttr(b.el.rawOpen, 'Name') || '').toLowerCase()));
+	let pos = blocks.length;
+	if (afterName) {
+		const i = blocks.findIndex((b) => getAttr(b.el.rawOpen, 'Name') === afterName);
+		if (i >= 0) pos = i + 1;
+	}
+	const used = [];
+	for (const src of els) {
+		// Frisch parsen → unabhängige Knoten (auch bei mehrfachem Einfügen).
+		const el = buildTree(tokenize(serializeNode(src))).children.find((c) => c.type === 'element');
+		let base = getAttr(el.rawOpen, 'Name');
+		if (!isValidName(base)) base = 'param';
+		const mk = (suffix) => base.slice(0, MAX_NAME_LENGTH - suffix.length) + suffix;
+		let name = base;
+		for (let n = 1; taken.has(name.toLowerCase()); n++) name = mk(n === 1 ? '_copy' : '_copy' + n);
+		if (name !== getAttr(el.rawOpen, 'Name')) setName(el, name);
+		taken.add(name.toLowerCase());
+		const fixEl = childElement(el, 'Fix');
+		if (fixEl) removeElementWithWs(el, fixEl);
+		blocks.splice(pos++, 0, { lead: [textNode(indent)], el });
+		used.push(name);
+	}
+	assembleBlocks(paramsEl, blocks, trailing);
+	return used;
 }
 
 /**
@@ -905,7 +991,8 @@ module.exports = {
 	escapeGdlStr, unescapeGdlStr, normalizeNumber,
 	setInner, setValue, setValueByType, setDescription,
 	currentFlags, setFlag, setName, setType, normalizeForType,
-	reorderParams, moveParam, deleteParam, addParam, duplicateParam, setArrayCell,
+	reorderParams, moveParam, deleteParam, deleteParams, addParam, duplicateParam, setArrayCell,
+	extractParamsXml, parseParamFragments, insertParams,
 	isValidName, nameExists, MAX_NAME_LENGTH,
 	addArrayRow, removeArrayRow, addArrayCol, removeArrayCol, createArray, removeArray, readArrayCells,
 };

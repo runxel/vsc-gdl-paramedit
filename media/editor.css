@@ -498,3 +498,33 @@ body {
 	border: 1px solid var(--vscode-panel-border);
 	color: var(--vscode-descriptionForeground);
 }
+
+/* ── Mehrfachauswahl (Klick / Cmd/Ctrl-Klick / Shift-Klick) ──
+   Zeilen sind nicht text-selektierbar, damit Shift-Klick den Bereich wählt
+   statt Text zu markieren; Eingabefelder bleiben normal selektierbar. */
+.row {
+	user-select: none;
+}
+
+.row input,
+.row select {
+	user-select: text;
+}
+
+/* Nach .row:hover/.row.title definiert, damit die Auswahl-Färbung gewinnt. */
+.row.selected,
+.row.selected:hover {
+	background: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.18));
+	box-shadow: inset 2px 0 0 0 var(--vscode-focusBorder);
+}
+
+/* Auswahl + Drop-Ziel gleichzeitig: beide Markierungen kombinieren. */
+.row.selected.drop-target {
+	box-shadow: inset 2px 0 0 0 var(--vscode-focusBorder),
+		inset 0 2px 0 0 var(--vscode-focusBorder);
+}
+
+/* Während des Ziehens: Quellzeilen abdunkeln, damit sichtbar ist, was wandert. */
+.row.dragging {
+	opacity: 0.4;
+}
