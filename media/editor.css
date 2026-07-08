@@ -119,6 +119,7 @@ body {
    (per Griff verstellbar) und ein Minimum; die Wert-Spalte nimmt den Rest. */
 .row,
 #colhead {
+	position: relative;
 	display: grid;
 	grid-template-columns: var(--first-col) auto minmax(var(--min-name), var(--col-name)) minmax(var(--min-type), var(--col-type)) minmax(var(--min-desc), var(--col-desc)) minmax(var(--min-val), 1fr);
 	align-items: center;
@@ -223,8 +224,36 @@ body {
 	opacity: 0.6;
 }
 
-.row.drop-target {
-	box-shadow: inset 0 2px 0 0 var(--vscode-focusBorder);
+/* Einfüge-Linie beim Ziehen: liegt AUF der Trennlinie zwischen den Zeilen
+   (nicht als Schatten in der Zeile) — bei Titeln/Trennbalken wird sie über
+   deren Außenabstand hinweg auf die Trennlinie darüber/darunter gelegt. */
+.row.drop-target::after,
+.row.drop-target-after::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 2px;
+	background: var(--vscode-focusBorder);
+	pointer-events: none;
+}
+
+.row.drop-target::after {
+	top: -1px;
+}
+
+.row.drop-target-after::after {
+	bottom: -1px;
+}
+
+/* Titel haben 10px Außenabstand nach oben, Trennbalken 4px — die Linie über
+   den Abstand hinweg auf die Trennlinie der Vorgängerzeile schieben. */
+.row.title.drop-target::after {
+	top: -11px;
+}
+
+.row.separator.drop-target::after {
+	top: -5px;
 }
 
 .row.title {
@@ -630,12 +659,6 @@ body {
 .row.selected:hover {
 	background: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.18));
 	box-shadow: inset 2px 0 0 0 var(--vscode-focusBorder);
-}
-
-/* Auswahl + Drop-Ziel gleichzeitig: beide Markierungen kombinieren. */
-.row.selected.drop-target {
-	box-shadow: inset 2px 0 0 0 var(--vscode-focusBorder),
-		inset 0 2px 0 0 var(--vscode-focusBorder);
 }
 
 /* Während des Ziehens: Quellzeilen abdunkeln, damit sichtbar ist, was wandert. */

@@ -416,6 +416,7 @@
 		});
 		handle.addEventListener('dragend', () => {
 			dragNames = null;
+			setDropMarker(null);
 			for (const r of rowByName.values()) r.classList.remove('dragging');
 		});
 		c.appendChild(handle);
@@ -562,29 +563,68 @@
 		});
 	}
 
-	// ── Drag & Drop: Zeile(n) auf eine andere ziehen → davor einsortieren.
-	//    Eine Mehrfachauswahl wandert als zusammenhängender Block. ──
+	// ── Drag & Drop: Zeile(n) auf eine andere ziehen → einsortieren.
+	//    Obere Zeilenhälfte = davor, untere Hälfte = dahinter — nur so lässt
+	//    sich auch HINTER die letzte Zeile schieben. Eine Mehrfachauswahl
+	//    wandert als zusammenhängender Block. ──
+	let dropMarkerRow = null; // Zeile, die gerade die Einfüge-Linie zeigt
+	function setDropMarker(row, after) {
+		if (dropMarkerRow && dropMarkerRow !== row) dropMarkerRow.classList.remove('drop-target', 'drop-target-after');
+		dropMarkerRow = row;
+		if (!row) return;
+		row.classList.toggle('drop-target', !after);
+		row.classList.toggle('drop-target-after', !!after);
+	}
 	function makeRowDroppable(row, p) {
 		row.addEventListener('dragover', (e) => {
 			if (!dragNames || dragNames.includes(p.name)) return;
 			e.preventDefault();
+			e.stopPropagation();
 			e.dataTransfer.dropEffect = 'move';
-			row.classList.add('drop-target');
+			const r = row.getBoundingClientRect();
+			setDropMarker(row, e.clientY > r.top + r.height / 2);
 		});
-		row.addEventListener('dragleave', () => row.classList.remove('drop-target'));
+		row.addEventListener('dragleave', () => { if (dropMarkerRow === row) setDropMarker(null); });
 		row.addEventListener('drop', (e) => {
 			e.preventDefault();
-			row.classList.remove('drop-target');
-			if (dragNames && !dragNames.includes(p.name)) reorderTo(dragNames, p.name);
+			e.stopPropagation();
+			const after = row.classList.contains('drop-target-after');
+			setDropMarker(null);
+			if (dragNames && !dragNames.includes(p.name)) reorderTo(dragNames, p.name, after);
 		});
 	}
-	function reorderTo(fromNames, beforeName) {
-		// Bewegte Zeilen in Dokument-Reihenfolge als Block vor dem Ziel einfügen.
+	// Leerer Bereich UNTER der letzten Zeile: dort fallen lassen = ans Ende.
+	// (Zeilen-Handler stoppen die Propagation, hier kommt nur der Rest an.)
+	function lastRowEl() {
+		for (let n = listEl.lastElementChild; n; n = n.previousElementSibling) {
+			if (n.classList.contains('row')) return n;
+		}
+		return null;
+	}
+	document.addEventListener('dragover', (e) => {
+		if (!dragNames) return;
+		const last = lastRowEl();
+		if (!last || e.clientY <= last.getBoundingClientRect().bottom) return;
+		e.preventDefault();
+		e.dataTransfer.dropEffect = 'move';
+		setDropMarker(last, true);
+	});
+	document.addEventListener('drop', (e) => {
+		if (!dragNames) return;
+		const last = lastRowEl();
+		if (!last || e.clientY <= last.getBoundingClientRect().bottom) return;
+		e.preventDefault();
+		setDropMarker(null);
+		reorderTo(dragNames, null, true);
+	});
+	function reorderTo(fromNames, targetName, after) {
+		// Bewegte Zeilen in Dokument-Reihenfolge als Block am Ziel einfügen;
+		// after = hinter dem Ziel, targetName null = ganz ans Ende.
 		const moving = params.map((p) => p.name).filter((n) => fromNames.includes(n));
 		if (!moving.length) return;
 		const rest = params.map((p) => p.name).filter((n) => !fromNames.includes(n));
-		const bi = rest.indexOf(beforeName);
-		rest.splice(bi < 0 ? rest.length : bi, 0, ...moving);
+		const ti = targetName == null ? -1 : rest.indexOf(targetName);
+		rest.splice(ti < 0 ? rest.length : ti + (after ? 1 : 0), 0, ...moving);
 		send({ field: 'reorder', names: rest });
 	}
 
