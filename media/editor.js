@@ -518,10 +518,18 @@
 
 	// Tastatur: Cmd/Ctrl+C kopiert die Auswahl als XML in die Zwischenablage,
 	// Cmd/Ctrl+V fügt Parameter aus der Zwischenablage ein (hinter der Auswahl),
-	// Cmd/Ctrl+A wählt alle sichtbaren Zeilen, Esc hebt die Auswahl auf.
-	// In Eingabefeldern bleibt das native Verhalten unangetastet.
+	// Cmd/Ctrl+A wählt alle sichtbaren Zeilen, Cmd/Ctrl+F springt ins Suchfeld,
+	// Esc hebt die Auswahl auf.
+	// In Eingabefeldern bleibt das native Verhalten unangetastet (außer Cmd+F).
 	document.addEventListener('keydown', (e) => {
 		const inField = e.target && e.target.closest && e.target.closest('input, select, textarea');
+		// Cmd/Ctrl+F fokussiert das Suchfeld — auch aus Eingabefeldern heraus.
+		if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key || '').toLowerCase() === 'f') {
+			e.preventDefault();
+			filterEl.focus();
+			filterEl.select();
+			return;
+		}
 		if (e.key === 'Escape' && !inField) { clearSelection(); return; }
 		// Entf (bzw. Cmd/Ctrl+Backspace) löscht die Auswahl — fixe Parameter
 		// filtert requestDelete heraus.
