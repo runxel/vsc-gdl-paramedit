@@ -41,7 +41,11 @@
             "filenamePattern": "**/Parameters.xml"
           }
         ],
-        "priority": "default"
+        "priority": {
+          "textEditor": "default",
+          "diffEditor": "never",
+          "mergeEditor": "never"
+        }
       }
     ],
     "configurationDefaults": {
