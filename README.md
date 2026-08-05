@@ -32,6 +32,7 @@ Using "Reopen Editor With… → Text Editor" you can show the actual file conte
 - fixed parameters ("blue") are preserved and protected
 - multiline selection
 - rearranging via drag & drop
+- collapsible groups: a title plus the "child"-flagged parameters below it — dragging a collapsed group moves its whole content
 - copy & pasting between different .xml files
 - sub-editor for array fields (1D & 2D): edit cells, add/remove rows/columns
 

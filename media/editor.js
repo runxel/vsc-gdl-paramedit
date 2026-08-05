@@ -48,6 +48,9 @@
 	let params = [];
 	let dragNames = null; // aktuell gezogene Parameter (Drag & Drop, ggf. Mehrfachauswahl)
 	const expanded = new Set(); // Namen der aufgeklappten Array-Parameter
+	// Zugeklappte Gruppen (Namen der Title-Zeilen). Überlebt ein Neuladen des
+	// Webviews (Fenster neu laden, Editor in eine andere Editorgruppe ziehen).
+	const collapsed = new Set((vscode.getState() || {}).collapsed || []);
 	const selected = new Set(); // Namen der ausgewählten Zeilen (Mehrfachauswahl)
 	let anchorName = null; // Anker der Bereichsauswahl (Shift-Klick)
 	const rowByName = new Map(); // Name → gerenderte Zeile (Auswahl-/Drag-Styling)
@@ -272,8 +275,11 @@
 		listEl.textContent = '';
 		rowByName.clear();
 		pruneSelection();
+		pruneCollapsed();
 		let shown = 0;
+		const inShutGroup = collapsedRows(); // Zeilen zugeklappter Gruppen entfallen
 		for (const p of params) {
+			if (inShutGroup.has(p.name)) continue;
 			if (q && !matches(p, q)) continue;
 			shown++;
 			if (p.isSeparator) { listEl.appendChild(renderSeparator(p)); continue; }
@@ -295,8 +301,87 @@
 			(p.description && p.description.toLowerCase().includes(q));
 	}
 
+	// ── Gruppen (Title-Zeilen) auf-/zuklappen ──
+	// Zur Gruppe gehören NUR die direkt folgenden Zeilen mit dem Flag
+	// „Untergeordnet" (ParFlg_Child) — genau die, die im Editor eingerückt
+	// stehen. Die erste Zeile ohne dieses Flag beendet die Gruppe, auch wenn
+	// noch kein neuer Title folgt. Das Zuklappen ist reine Ansichtssache: an
+	// der Datei ändert es nichts.
+
+	function filterActive() { return filterEl.value.trim() !== ''; }
+
+	// Solange gefiltert wird, sind ALLE Gruppen aufgeklappt — sonst blieben
+	// Treffer in zugeklappten Gruppen unsichtbar. Der gemerkte Zustand bleibt
+	// erhalten und greift wieder, sobald der Filter leer ist. Eine Gruppe ohne
+	// untergeordnete Zeilen kann nichts verbergen und gilt nie als zugeklappt.
+	function isCollapsed(name) {
+		return collapsed.has(name) && !filterActive() && groupMembers(name).length > 0;
+	}
+
+	/** Namen der untergeordneten Zeilen einer Gruppe — ohne die Title-Zeile selbst. */
+	function groupMembers(titleName) {
+		const i = params.findIndex((p) => p.name === titleName);
+		if (i < 0 || !params[i].isTitle) return [];
+		const out = [];
+		for (let j = i + 1; j < params.length && params[j].child && !params[j].isTitle; j++) {
+			out.push(params[j].name);
+		}
+		return out;
+	}
+
+	/** Namen aller Zeilen, die gerade in einer zugeklappten Gruppe stecken. */
+	function collapsedRows() {
+		const out = new Set();
+		for (const p of params) {
+			if (p.isTitle && isCollapsed(p.name)) for (const m of groupMembers(p.name)) out.add(m);
+		}
+		return out;
+	}
+
+	/** Nächste Title-Zeile oberhalb — die Gruppe, der eine Child-Zeile zufällt. */
+	function owningTitle(name) {
+		let i = params.findIndex((p) => p.name === name);
+		for (i -= 1; i >= 0; i--) if (params[i].isTitle) return params[i].name;
+		return null;
+	}
+
+	function saveCollapsed() { vscode.setState({ collapsed: [...collapsed] }); }
+
+	function toggleGroup(name) {
+		if (collapsed.has(name)) collapsed.delete(name); else collapsed.add(name);
+		saveCollapsed();
+		render();
+	}
+
+	// Klappt eine Gruppe auf, bevor etwas in sie eingefügt wird — sonst landete
+	// die neue Zeile unsichtbar im zugeklappten Block. Kein Title: passiert nichts.
+	function openGroup(name) {
+		if (collapsed.delete(name)) saveCollapsed();
+	}
+
+	/** Entfernt verwaiste Namen (gelöschte/umbenannte Gruppen) aus dem Zustand. */
+	function pruneCollapsed() {
+		const titles = new Set(params.filter((p) => p.isTitle).map((p) => p.name));
+		let changed = false;
+		for (const n of [...collapsed]) if (!titles.has(n)) { collapsed.delete(n); changed = true; }
+		if (changed) saveCollapsed();
+	}
+
+	// Ergänzt zu jeder zugeklappten Gruppe deren (nicht gerenderten) Inhalt —
+	// so wandert eine zugeklappte Gruppe beim Ziehen als Ganzes. Ergebnis in
+	// Dokument-Reihenfolge.
+	function withGroupContent(names) {
+		const out = new Set(names);
+		for (const n of names) {
+			if (!isCollapsed(n)) continue;
+			for (const m of groupMembers(n)) out.add(m);
+		}
+		return params.filter((p) => out.has(p.name)).map((p) => p.name);
+	}
+
 	function renderTitle(p) {
-		const row = el('div', 'row title' + (p.fix ? ' fix' : '') + (p.hidden ? ' hidden' : ''));
+		const shut = isCollapsed(p.name);
+		const row = el('div', 'row title' + (shut ? ' collapsed' : '') + (p.fix ? ' fix' : '') + (p.hidden ? ' hidden' : ''));
 		row.appendChild(renderControls(p));
 
 		// Nur das Hidden-Flag — vertikal bündig mit den Flags der Parameterzeilen
@@ -310,13 +395,25 @@
 		wireNameInput(name, p);
 		row.appendChild(name);
 
+		// Überschrift + (bei zugeklappter Gruppe) Anzahl der verborgenen Zeilen —
+		// zusammen in einer Zelle, die Typ-, Beschreibungs- und Wert-Spalte überspannt.
+		const main = el('span', 'title-main');
 		const cap = document.createElement('input');
 		cap.type = 'text';
 		cap.className = 'title-text';
 		cap.value = p.description != null ? p.description : '';
 		cap.placeholder = 'Gruppen-Überschrift';
 		commitOnChange(cap, () => { send({ field: 'description', name: p.name, value: cap.value }); flash(cap); });
-		row.appendChild(cap);
+		main.appendChild(cap);
+		const n = shut ? groupMembers(p.name).length : 0;
+		if (n) main.appendChild(el('span', 'group-count muted', n + ' ausgeblendet'));
+		row.appendChild(main);
+
+		// Doppelklick auf die Zeile klappt die Gruppe ebenfalls auf/zu.
+		row.addEventListener('dblclick', (e) => {
+			if (e.target.closest('input, select, button') || filterActive()) return;
+			toggleGroup(p.name);
+		});
 
 		wireRowSelection(row, p);
 		setRowContext(row, p);
@@ -401,12 +498,18 @@
 
 	function renderControls(p) {
 		const c = el('span', 'controls');
+		// Gruppen sind auf-/zuklappbar — der Pfeil steht ganz links, wie bei den
+		// Abschnitten der VS-Code-Seitenleiste.
+		if (p.isTitle) c.appendChild(twistyBtn(p));
 		const handle = el('span', 'drag-handle', '⠿');
-		handle.title = 'Ziehen zum Verschieben';
+		handle.title = p.isTitle
+			? 'Ziehen zum Verschieben — zugeklappt wandert die ganze Gruppe mit'
+			: 'Ziehen zum Verschieben';
 		handle.draggable = true;
 		handle.addEventListener('dragstart', (e) => {
-			// Gehört die Zeile zur Mehrfachauswahl, wandert die GANZE Auswahl mit.
-			dragNames = selected.has(p.name) && selected.size > 1 ? orderedSelection() : [p.name];
+			// Gehört die Zeile zur Mehrfachauswahl, wandert die GANZE Auswahl mit;
+			// zugeklappte Gruppen nehmen ihren verborgenen Inhalt mit.
+			dragNames = withGroupContent(selected.has(p.name) && selected.size > 1 ? orderedSelection() : [p.name]);
 			e.dataTransfer.effectAllowed = 'move';
 			e.dataTransfer.setData('text/plain', dragNames.join('\n'));
 			for (const n of dragNames) {
@@ -420,8 +523,10 @@
 			for (const r of rowByName.values()) r.classList.remove('dragging');
 		});
 		c.appendChild(handle);
-		c.appendChild(iconBtn('＋', 'Neuen Parameter unter diesem einfügen', () =>
-			send({ field: 'add', paramType: 'Length', newName: makeUniqueName(), afterName: p.name })));
+		c.appendChild(iconBtn('＋', 'Neuen Parameter unter diesem einfügen', () => {
+			openGroup(p.name); // sonst wäre der neue Parameter sofort wieder verborgen
+			send({ field: 'add', paramType: 'Length', newName: makeUniqueName(), afterName: p.name });
+		}));
 		// Fixe Parameter (blau, vom Subtype vorgegeben) sind nicht löschbar —
 		// sie bekommen erst gar keinen Papierkorb.
 		if (!p.fix) {
@@ -430,6 +535,26 @@
 				() => requestDelete(selected.has(p.name) && selected.size > 1 ? orderedSelection() : [p.name])));
 		}
 		return c;
+	}
+
+	// Auf-/Zuklapp-Pfeil einer Gruppe. Deaktiviert, wenn es nichts zuzuklappen
+	// gibt: beim Filtern (dann sind alle Gruppen offen) und bei einer Gruppe
+	// ohne untergeordnete Zeilen — statt einen Zustand zu zeigen, der nicht gilt.
+	function twistyBtn(p) {
+		const shut = isCollapsed(p.name);
+		const b = el('button', 'twisty', shut ? '▸' : '▾');
+		if (!filterActive() && !groupMembers(p.name).length) {
+			b.disabled = true;
+			b.title = 'Leere Gruppe — dazu gehören nur die direkt folgenden Parameter ' +
+				'mit dem Flag „Untergeordnet" (ParFlg_Child).';
+		} else if (filterActive()) {
+			b.disabled = true;
+			b.title = 'Beim Filtern sind alle Gruppen aufgeklappt';
+		} else {
+			b.title = shut ? 'Gruppe aufklappen' : 'Gruppe zuklappen (Inhalt wandert beim Ziehen mit)';
+			b.addEventListener('click', () => toggleGroup(p.name));
+		}
+		return b;
 	}
 
 	// Löscht die genannten Parameter in EINEM Schritt (ein Undo) — fixe
@@ -551,6 +676,7 @@
 			const sel = orderedSelection();
 			const afterName = sel.length ? sel[sel.length - 1]
 				: (params.length ? params[params.length - 1].name : null);
+			if (afterName) openGroup(afterName); // Eingefügtes nicht im zugeklappten Block verstecken
 			send({ field: 'paste', afterName });
 		} else if (k === 'a') {
 			e.preventDefault();
@@ -631,6 +757,12 @@
 		const moving = params.map((p) => p.name).filter((n) => fromNames.includes(n));
 		if (!moving.length) return;
 		const rest = params.map((p) => p.name).filter((n) => !fromNames.includes(n));
+		// Hinter einer zugeklappten Gruppe abgelegt heißt: hinter ihren ganzen
+		// (verborgenen) Inhalt — nicht zwischen Kopf und erste Zeile.
+		if (after && targetName != null && isCollapsed(targetName)) {
+			const inside = groupMembers(targetName).filter((n) => rest.includes(n));
+			if (inside.length) targetName = inside[inside.length - 1];
+		}
 		const ti = targetName == null ? -1 : rest.indexOf(targetName);
 		rest.splice(ti < 0 ? rest.length : ti + (after ? 1 : 0), 0, ...moving);
 		send({ field: 'reorder', names: rest });
@@ -722,7 +854,12 @@
 				chip.tabIndex = -1;
 			} else {
 				chip.title = f.title;
-				chip.addEventListener('click', () => send({ field: 'flag', name: p.name, flag: f.flag, value: !active }));
+				chip.addEventListener('click', () => {
+					// „Untergeordnet" einschalten heißt: die Zeile fällt der Gruppe
+					// darüber zu — ist die zugeklappt, wäre sie sofort verschwunden.
+					if (f.key === 'child' && !active) openGroup(owningTitle(p.name));
+					send({ field: 'flag', name: p.name, flag: f.flag, value: !active });
+				});
 			}
 			box.appendChild(chip);
 		}

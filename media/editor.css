@@ -9,8 +9,9 @@ body {
 	font-size: var(--vscode-font-size);
 	color: var(--vscode-foreground);
 	background: var(--vscode-editor-background);
-	--first-col: 78px;
-	/* Breite der ersten Spalte (Steuer-Buttons) */
+	--first-col: 90px;
+	/* Breite der ersten Spalte (Steuer-Buttons; bei Gruppen zusätzlich der
+	   Auf-/Zuklapp-Pfeil) */
 	/* Spaltenbreiten — über die Griffe in der Kopfzeile verstellbar
 	   (das Webview setzt sie dann als Inline-Variablen auf <body>). */
 	--col-name: 188px;
@@ -267,8 +268,61 @@ body {
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
-.row.title .title-text {
+/* Zugeklappte Gruppe: kräftigerer Abschluss unten — der Block ist „zu".
+   (Die 1px mehr Rahmen kommen vom Innenabstand, damit die Zeile nicht springt.) */
+.row.title.collapsed {
+	padding-bottom: 5px;
+	border-bottom-width: 2px;
+}
+
+/* Überschrift (+ Anzahl der verborgenen Zeilen bei zugeklappter Gruppe)
+   überspannt Typ-, Beschreibungs- und Wert-Spalte. */
+.row.title .title-main {
 	grid-column: 4 / -1;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.row.title .title-text {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.group-count {
+	flex: 0 0 auto;
+	font-size: 0.78em;
+	white-space: nowrap;
+}
+
+/* Auf-/Zuklapp-Pfeil der Gruppen — ganz links, wie in der VS-Code-Seitenleiste. */
+.twisty {
+	padding: 0 2px;
+	font: inherit;
+	font-size: 1.8em;
+	line-height: 0;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	opacity: 0.75;
+	position: relative;
+	top: -3px;
+}
+
+.row:hover .twisty {
+	opacity: 1;
+}
+
+.twisty:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
+
+.twisty:disabled {
+	cursor: default;
+	opacity: 0.3;
 }
 
 /* Trennbalken: dezenter als ein Titel, mit horizontaler Linie statt Überschrift. */
