@@ -1,0 +1,8 @@
+{
+  "extension.displayName": "GDL Parameter Editor",
+  "extension.description": "Visual Editor for GDL `paramlist.xml` files.",
+  "customEditor.displayName": "GDL Parameter Editor",
+  "command.copy.title": "Copy",
+  "command.paste.title": "Paste",
+  "command.duplicate.title": "Duplicate"
+}

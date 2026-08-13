@@ -1,7 +1,13 @@
 'use strict';
 
 const vscode = require('vscode');
+const fs = require('fs');
+const path = require('path');
 const P = require('./src/paramlist');
+
+// Übersetzung der Oberflächentexte. Quelltexte sind Englisch, die Übersetzung
+// steht in l10n/bundle.l10n.<sprache>.json (siehe "l10n" in der package.json).
+const t = (...args) => vscode.l10n.t(...args);
 
 const VIEW_TYPE = 'gdl.parameterEditor';
 
@@ -13,23 +19,27 @@ const ORIGINAL_EXT_ID = 'b-prisma.gdl-parameter-editor';
 
 function warnIfOriginalInstalled() {
 	if (!vscode.extensions.getExtension(ORIGINAL_EXT_ID)) return false;
+	// Beschriftungen einmal übersetzen — die Antwort kommt als genau dieser Text zurück.
+	const uninstall = t('Uninstall original (b-prisma)');
+	const showExts = t('Show extensions');
+	const reload = t('Reload window');
 	vscode.window.showWarningMessage(
-		'Konflikt: Der originale „GDL Parameter Editor" (b-prisma) und dieser Fork (runxel) ' +
-		'sind gleichzeitig installiert. Beide beanspruchen dieselben Dateien (paramlist.xml / ' +
-		'Parameters.xml) — nur einer von beiden funktioniert. Bitte eine der beiden Extensions deinstallieren.',
-		'Original (b-prisma) deinstallieren',
-		'Extensions anzeigen'
+		t('Conflict: the original "GDL Parameter Editor" (b-prisma) and this fork (runxel) are ' +
+			'installed at the same time. Both claim the same files (paramlist.xml / Parameters.xml) — ' +
+			'only one of them works. Please uninstall one of the two extensions.'),
+		uninstall,
+		showExts
 	).then((choice) => {
-		if (choice === 'Original (b-prisma) deinstallieren') {
+		if (choice === uninstall) {
 			vscode.commands
 				.executeCommand('workbench.extensions.uninstallExtension', ORIGINAL_EXT_ID)
 				.then(
 					() => vscode.window
-						.showInformationMessage('Original deinstalliert. Fenster neu laden, damit der Fork den Editor übernimmt.', 'Neu laden')
-						.then((c) => { if (c === 'Neu laden') vscode.commands.executeCommand('workbench.action.reloadWindow'); }),
-					(e) => vscode.window.showErrorMessage('Deinstallation fehlgeschlagen: ' + String(e && e.message || e))
+						.showInformationMessage(t('Original uninstalled. Reload the window so the fork takes over the editor.'), reload)
+						.then((c) => { if (c === reload) vscode.commands.executeCommand('workbench.action.reloadWindow'); }),
+					(e) => vscode.window.showErrorMessage(t('Uninstall failed: {0}', String(e && e.message || e)))
 				);
-		} else if (choice === 'Extensions anzeigen') {
+		} else if (choice === showExts) {
 			vscode.commands.executeCommand('workbench.extensions.search', 'gdl-parameter-editor');
 		}
 	});
@@ -37,6 +47,10 @@ function warnIfOriginalInstalled() {
 }
 
 function activate(context) {
+	// Meldungen des Datenkerns in der Sprache der Oberfläche — der Kern selbst
+	// kennt VS Code nicht (die Tests laufen in nacktem Node).
+	P.setL10n(vscode.l10n);
+
 	// Läuft dank onStartupFinished immer — auch wenn das Original den viewType
 	// „gewonnen" hat und dieser Fork sonst nie aktiviert würde.
 	let conflictWarned = warnIfOriginalInstalled();
@@ -64,7 +78,7 @@ function activate(context) {
 			try {
 				await provider.applyEdit(document, { field: 'duplicate', name });
 			} catch (e) {
-				vscode.window.showErrorMessage('Duplizieren fehlgeschlagen: ' + String(e && e.message || e));
+				vscode.window.showErrorMessage(t('Duplicating failed: {0}', String(e && e.message || e)));
 			}
 		}),
 		// „Kopieren": legt die Auswahl (bzw. die angeklickte Zeile) als XML-
@@ -85,7 +99,7 @@ function activate(context) {
 			try {
 				await provider.applyEdit(document, { field: 'paste', afterName: (ctx && ctx.paramName) || null });
 			} catch (e) {
-				vscode.window.showErrorMessage('Einfügen fehlgeschlagen: ' + String(e && e.message || e));
+				vscode.window.showErrorMessage(t('Pasting failed: {0}', String(e && e.message || e)));
 			}
 		})
 	);
@@ -106,9 +120,8 @@ function activate(context) {
 		// sähe der Nutzer nur kommentarlos den falschen Editor.
 		if (!conflictWarned) {
 			vscode.window.showErrorMessage(
-				'GDL Parameter Editor (Fork): Editor konnte nicht registriert werden — ' +
-				'vermutlich ist die Original-Extension (b-prisma) ebenfalls installiert. ' +
-				'Bitte eine der beiden deinstallieren.'
+				t('GDL Parameter Editor (fork): the editor could not be registered — the original ' +
+					'extension (b-prisma) is probably installed as well. Please uninstall one of the two.')
 			);
 		}
 	}
@@ -133,9 +146,9 @@ class ParamEditorProvider {
 			if (!xml) return;
 			await vscode.env.clipboard.writeText(xml);
 			vscode.window.setStatusBarMessage(
-				names.length === 1 ? '1 Parameter kopiert' : names.length + ' Parameter kopiert', 3000);
+				names.length === 1 ? t('1 parameter copied') : t('{0} parameters copied', names.length), 3000);
 		} catch (e) {
-			vscode.window.showErrorMessage('Kopieren fehlgeschlagen: ' + String(e && e.message || e));
+			vscode.window.showErrorMessage(t('Copying failed: {0}', String(e && e.message || e)));
 		}
 	}
 
@@ -274,19 +287,19 @@ class ParamEditorProvider {
 		const findTarget = () => P.getParameters(doc).find((p) => p.name === msg.name);
 
 		switch (msg.field) {
-			case 'value': { const t = findTarget(); if (!t) return false; P.setValueByType(t.node, t.type, msg.value); break; }
-			case 'description': { const t = findTarget(); if (!t) return false; P.setDescription(t.node, msg.value); break; }
+			case 'value': { const target = findTarget(); if (!target) return false; P.setValueByType(target.node, target.type, msg.value); break; }
+			case 'description': { const target = findTarget(); if (!target) return false; P.setDescription(target.node, msg.value); break; }
 			case 'name': {
-				const t = findTarget(); if (!t) return false;
+				const target = findTarget(); if (!target) return false;
 				const nm = String(msg.value || '').trim();
-				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '". Erlaubt: Buchstaben, Ziffern, Unterstrich (Beginn mit Buchstabe oder _), maximal ' + P.MAX_NAME_LENGTH + ' Zeichen.');
-				if (P.nameExists(doc, nm, t.node)) throw new Error('Der Name „' + nm + '" existiert bereits. Namen müssen eindeutig sein.');
-				P.setName(t.node, nm); break;
+				if (!P.isValidName(nm)) throw new Error(t('Invalid name "{0}". Allowed: letters, digits, underscore (starting with a letter or _), at most {1} characters.', nm, P.MAX_NAME_LENGTH));
+				if (P.nameExists(doc, nm, target.node)) throw new Error(t('The name "{0}" already exists. Names must be unique.', nm));
+				P.setName(target.node, nm); break;
 			}
-			case 'type': { const t = findTarget(); if (!t) return false; P.setType(t.node, msg.value); break; }
+			case 'type': { const target = findTarget(); if (!target) return false; P.setType(target.node, msg.value); break; }
 			// 'fix' ist absichtlich KEIN Editier-Feld: <Fix/> wird vom Subtype des
 			// Objekts bestimmt und darf nie über den Editor gesetzt/entfernt werden.
-			case 'flag': { const t = findTarget(); if (!t) return false; P.setFlag(t.node, msg.flag, !!msg.value); break; }
+			case 'flag': { const target = findTarget(); if (!target) return false; P.setFlag(target.node, msg.flag, !!msg.value); break; }
 			case 'move': P.moveParam(doc, msg.name, msg.delta); break;
 			case 'reorder': P.reorderParams(doc, msg.names || []); break;
 			case 'delete': {
@@ -296,24 +309,24 @@ class ParamEditorProvider {
 				const all = P.getParameters(doc);
 				const wanted = msg.names && msg.names.length ? msg.names : [msg.name];
 				const deletable = wanted.filter((n) => {
-					const t = all.find((p) => p.name === n);
-					return t && !t.fix;
+					const target = all.find((p) => p.name === n);
+					return target && !target.fix;
 				});
 				if (!deletable.length) {
-					throw new Error('Fixe Parameter (blau, vom Subtype vorgegeben) können nicht gelöscht werden.');
+					throw new Error(t('Fix parameters (blue, dictated by the subtype) cannot be deleted.'));
 				}
 				P.deleteParams(doc, deletable);
 				break;
 			}
 			case 'duplicate': {
-				const t = findTarget(); if (!t) return false;
+				const target = findTarget(); if (!target) return false;
 				// Namen sind eindeutig (case-insensitiv): "_new" anhängen,
 				// bei erneutem Duplizieren "_new2", "_new3", … Der Basisname wird
 				// bei Bedarf gekürzt, damit das 32-Zeichen-Limit eingehalten bleibt.
-				const mk = (suffix) => t.name.slice(0, P.MAX_NAME_LENGTH - suffix.length) + suffix;
+				const mk = (suffix) => target.name.slice(0, P.MAX_NAME_LENGTH - suffix.length) + suffix;
 				let newName = mk('_new');
 				for (let n = 2; P.nameExists(doc, newName, null); n++) newName = mk('_new' + n);
-				P.duplicateParam(doc, t.name, newName);
+				P.duplicateParam(doc, target.name, newName);
 				break;
 			}
 			case 'paste': {
@@ -321,24 +334,24 @@ class ParamEditorProvider {
 				// gemacht, <Fix/> wird entfernt (gilt nur für den Subtype der Quelldatei).
 				const clip = await vscode.env.clipboard.readText();
 				const frags = P.parseParamFragments(clip);
-				if (!frags.length) throw new Error('Die Zwischenablage enthält keine GDL-Parameter (XML aus „Kopieren").');
+				if (!frags.length) throw new Error(t('The clipboard does not contain any GDL parameters (XML from "Copy").'));
 				P.insertParams(doc, frags, msg.afterName || null);
 				break;
 			}
 			case 'add': {
 				const nm = String(msg.newName || '').trim();
-				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '" (max. ' + P.MAX_NAME_LENGTH + ' Zeichen).');
-				if (P.nameExists(doc, nm, null)) throw new Error('Der Name „' + nm + '" existiert bereits.');
+				if (!P.isValidName(nm)) throw new Error(t('Invalid name "{0}" (max. {1} characters).', nm, P.MAX_NAME_LENGTH));
+				if (P.nameExists(doc, nm, null)) throw new Error(t('The name "{0}" already exists.', nm));
 				P.addParam(doc, { type: msg.paramType, name: nm, afterName: msg.afterName || null });
 				break;
 			}
-			case 'arraycell': { const t = findTarget(); if (!t) return false; P.setArrayCell(t.node, msg.row, msg.col, msg.value); break; }
-			case 'arrayAddRow': { const t = findTarget(); if (!t) return false; P.addArrayRow(t.node); break; }
-			case 'arrayDelRow': { const t = findTarget(); if (!t) return false; P.removeArrayRow(t.node, msg.row); break; }
-			case 'arrayAddCol': { const t = findTarget(); if (!t) return false; P.addArrayCol(t.node); break; }
-			case 'arrayDelCol': { const t = findTarget(); if (!t) return false; P.removeArrayCol(t.node, msg.col); break; }
-			case 'arrayCreate': { const t = findTarget(); if (!t) return false; P.createArray(t.node, msg.rows || 1, msg.cols || 0); break; }
-			case 'arrayRemove': { const t = findTarget(); if (!t) return false; P.removeArray(t.node); break; }
+			case 'arraycell': { const target = findTarget(); if (!target) return false; P.setArrayCell(target.node, msg.row, msg.col, msg.value); break; }
+			case 'arrayAddRow': { const target = findTarget(); if (!target) return false; P.addArrayRow(target.node); break; }
+			case 'arrayDelRow': { const target = findTarget(); if (!target) return false; P.removeArrayRow(target.node, msg.row); break; }
+			case 'arrayAddCol': { const target = findTarget(); if (!target) return false; P.addArrayCol(target.node); break; }
+			case 'arrayDelCol': { const target = findTarget(); if (!target) return false; P.removeArrayCol(target.node, msg.col); break; }
+			case 'arrayCreate': { const target = findTarget(); if (!target) return false; P.createArray(target.node, msg.rows || 1, msg.cols || 0); break; }
+			case 'arrayRemove': { const target = findTarget(); if (!target) return false; P.removeArray(target.node); break; }
 			default: return false;
 		}
 		return true;
@@ -365,7 +378,7 @@ class ParamEditorProvider {
 		// dann darf das Webview nicht weiter den neuen Stand zeigen (der Fehler
 		// führt zu Hinweis + Neu-Rendern aus der Datei).
 		if (!(await vscode.workspace.applyEdit(edit))) {
-			throw new Error('Änderung konnte nicht angewendet werden — bitte erneut versuchen.');
+			throw new Error(t('The change could not be applied — please try again.'));
 		}
 		return newText;
 	}
@@ -383,8 +396,11 @@ class ParamEditorProvider {
 			`img-src ${webview.cspSource}; ` +
 			`style-src ${webview.cspSource} 'unsafe-inline'; ` +
 			`script-src 'nonce-${nonce}';`;
+		// Wörterbuch fürs Webview: dort gibt es kein vscode.l10n. '<' maskieren,
+		// damit ein Text niemals das <script> vorzeitig beenden kann.
+		const strings = JSON.stringify(webviewBundle(this.context.extensionPath)).replace(/</g, '\\u003c');
 		return `<!DOCTYPE html>
-<html lang="de">
+<html lang="${esc(vscode.env.language || 'en')}">
 <head>
 	<meta charset="UTF-8">
 	<meta http-equiv="Content-Security-Policy" content="${csp}">
@@ -395,18 +411,19 @@ class ParamEditorProvider {
 <body>
 	<div id="toolbar">
 		<span id="filterWrap">
-			<input id="filter" type="text" placeholder="Filtern (Name oder Beschreibung)…">
-			<button id="filterClear" title="Filter löschen (Esc)" hidden>✕</button>
+			<input id="filter" type="text" placeholder="${esc(t('Filter (name or description)…'))}">
+			<button id="filterClear" title="${esc(t('Clear filter (Esc)'))}" hidden>✕</button>
 		</span>
-		<button id="addBtn" title="Neuen Parameter am Ende hinzufügen">+ Parameter</button>
-		<button id="addGroupBtn" title="Neue Gruppen-Überschrift (Title) hinzufügen">+ Gruppe</button>
-		<button id="addSeparatorBtn" title="Neuen Trennbalken (Separator) hinzufügen">+ Trennlinie</button>
+		<button id="addBtn" title="${esc(t('Add a new parameter at the end'))}">${esc(t('+ Parameter'))}</button>
+		<button id="addGroupBtn" title="${esc(t('Add a new group heading (Title)'))}">${esc(t('+ Group'))}</button>
+		<button id="addSeparatorBtn" title="${esc(t('Add a new separator bar (Separator)'))}">${esc(t('+ Separator'))}</button>
 		<span id="count" class="muted"></span>
 	</div>
 	<div id="error" class="error" hidden></div>
 	<div id="notice" class="notice" hidden></div>
 	<div id="colhead"></div>
 	<div id="list"></div>
+	<script nonce="${nonce}">window.__l10n = ${strings};</script>
 	<script nonce="${nonce}" src="${js}"></script>
 </body>
 </html>`;
@@ -476,6 +493,39 @@ function toView(p) {
 				}
 			: null,
 	};
+}
+
+/** Maskiert Text fürs Einsetzen in HTML-Attribute/-Inhalte. */
+function esc(s) {
+	return String(s)
+		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Übersetzungen fürs Webview: dort steht vscode.l10n nicht zur Verfügung.
+// Statt die Texte doppelt zu pflegen, wandert die komplette Bundle-Datei der
+// aktiven Sprache ins Webview — die Schlüssel sind dort wie hier die
+// englischen Quelltexte. Ohne passendes Bundle (Englisch, oder eine Sprache
+// ohne Übersetzung) bleibt die Karte leer und das Webview zeigt seine
+// Quelltexte an.
+let webviewBundleCache = null;
+function webviewBundle(extensionPath) {
+	if (webviewBundleCache) return webviewBundleCache;
+	const lang = vscode.env.language || 'en';
+	// 'de-DE' → erst 'de-DE', dann 'de' versuchen.
+	for (const code of [lang, lang.split('-')[0]]) {
+		try {
+			const raw = fs.readFileSync(
+				path.join(extensionPath, 'l10n', 'bundle.l10n.' + code + '.json'), 'utf8');
+			const map = JSON.parse(raw);
+			// Das l10n-Format erlaubt statt eines Strings auch { message, comment }.
+			for (const k of Object.keys(map)) {
+				if (map[k] && typeof map[k] === 'object') map[k] = map[k].message;
+			}
+			return (webviewBundleCache = map);
+		} catch (e) { /* nächste Sprachvariante probieren */ }
+	}
+	return (webviewBundleCache = {});
 }
 
 function makeNonce() {

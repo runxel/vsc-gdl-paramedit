@@ -1,8 +1,8 @@
 {
   "name": "gdl-parameter-editor",
-  "displayName": "GDL Parameter Editor",
-  "description": "Visual Editor for GDL `paramlist.xml` files.",
-  "version": "0.10.1",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "0.11.0",
   "publisher": "runxel",
   "repository": {
     "type": "git",
@@ -28,11 +28,12 @@
     "onStartupFinished"
   ],
   "main": "./extension.js",
+  "l10n": "./l10n",
   "contributes": {
     "customEditors": [
       {
         "viewType": "gdl.parameterEditor",
-        "displayName": "GDL Parameter Editor",
+        "displayName": "%customEditor.displayName%",
         "selector": [
           {
             "filenamePattern": "**/paramlist.xml"
@@ -57,15 +58,15 @@
     "commands": [
       {
         "command": "gdl.parameterEditor.copy",
-        "title": "Copy"
+        "title": "%command.copy.title%"
       },
       {
         "command": "gdl.parameterEditor.paste",
-        "title": "Paste"
+        "title": "%command.paste.title%"
       },
       {
         "command": "gdl.parameterEditor.duplicate",
-        "title": "Duplicate"
+        "title": "%command.duplicate.title%"
       }
     ],
     "menus": {

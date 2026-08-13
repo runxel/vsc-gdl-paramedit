@@ -15,6 +15,22 @@
  * aneinanderhängen. Editieren ändert nur gezielt einzelne Knoten.
  */
 
+// ── Übersetzung ───────────────────────────────────────────────────────────
+// Der Datenkern kennt VS Code nicht (die Tests laufen in nacktem Node), holt
+// sich die Übersetzung aber von außen: extension.js reicht `vscode.l10n`
+// herein (setL10n). Ohne Haken bleiben die englischen Quelltexte stehen —
+// {0}, {1}, … werden dann genau wie bei vscode.l10n.t ersetzt.
+let l10n = {
+	t(message, ...args) {
+		if (!args.length) return message;
+		return String(message).replace(/\{(\d+)\}/g,
+			(m, i) => (args[i] !== undefined ? String(args[i]) : m));
+	},
+};
+/** Übersetzer setzen (erwartet ein Objekt mit t(message, ...args)). */
+function setL10n(impl) { if (impl && typeof impl.t === 'function') l10n = impl; }
+const t = (message, ...args) => l10n.t(message, ...args);
+
 const BOM = '﻿';
 
 /** Knotentypen */
@@ -45,7 +61,7 @@ function tokenize(s) {
 
 		if (s.startsWith('<![CDATA[', lt)) {
 			const end = s.indexOf(']]>', lt);
-			if (end === -1) throw new Error('Unterminated CDATA at offset ' + lt);
+			if (end === -1) throw new Error(t('Unterminated CDATA at offset {0}', lt));
 			const raw = s.slice(lt, end + 3);
 			tokens.push({ type: 'cdata', raw });
 			i = end + 3;
@@ -53,14 +69,14 @@ function tokenize(s) {
 		}
 		if (s.startsWith('<!--', lt)) {
 			const end = s.indexOf('-->', lt);
-			if (end === -1) throw new Error('Unterminated comment at offset ' + lt);
+			if (end === -1) throw new Error(t('Unterminated comment at offset {0}', lt));
 			tokens.push({ type: 'comment', raw: s.slice(lt, end + 3) });
 			i = end + 3;
 			continue;
 		}
 		if (s.startsWith('<?', lt)) {
 			const end = s.indexOf('?>', lt);
-			if (end === -1) throw new Error('Unterminated PI at offset ' + lt);
+			if (end === -1) throw new Error(t('Unterminated PI at offset {0}', lt));
 			tokens.push({ type: 'pi', raw: s.slice(lt, end + 2) });
 			i = end + 2;
 			continue;
@@ -68,7 +84,7 @@ function tokenize(s) {
 		if (s.startsWith('<!', lt)) {
 			// DOCTYPE o.ä. – bis zum nächsten '>'
 			const end = s.indexOf('>', lt);
-			if (end === -1) throw new Error('Unterminated declaration at offset ' + lt);
+			if (end === -1) throw new Error(t('Unterminated declaration at offset {0}', lt));
 			tokens.push({ type: 'pi', raw: s.slice(lt, end + 1) });
 			i = end + 1;
 			continue;
@@ -88,7 +104,7 @@ function tokenize(s) {
 			}
 			j++;
 		}
-		if (j >= n) throw new Error('Unterminated tag at offset ' + lt);
+		if (j >= n) throw new Error(t('Unterminated tag at offset {0}', lt));
 		const rawTag = s.slice(lt, j + 1);
 		i = j + 1;
 
@@ -117,14 +133,15 @@ function buildTree(tokens) {
 	const root = { type: 'root', children: [] };
 	const stack = [root];
 
-	for (const t of tokens) {
+	// Laufvariable heißt `tok` (nicht `t`) — `t` ist der Übersetzer.
+	for (const tok of tokens) {
 		const parent = stack[stack.length - 1];
-		switch (t.type) {
+		switch (tok.type) {
 			case 'open': {
 				const el = {
 					type: 'element',
-					name: t.name,
-					rawOpen: t.raw,
+					name: tok.name,
+					rawOpen: tok.raw,
 					selfClosing: false,
 					children: [],
 					rawClose: '',
@@ -136,8 +153,8 @@ function buildTree(tokens) {
 			case 'selfclose': {
 				parent.children.push({
 					type: 'element',
-					name: t.name,
-					rawOpen: t.raw,
+					name: tok.name,
+					rawOpen: tok.raw,
 					selfClosing: true,
 					children: [],
 					rawClose: '',
@@ -146,22 +163,21 @@ function buildTree(tokens) {
 			}
 			case 'close': {
 				const el = stack.pop();
-				if (!el || el.type !== 'element' || el.name !== t.name) {
-					throw new Error(
-						'Mismatched closing tag </' + t.name + '>' +
-						(el && el.name ? ' (erwartet </' + el.name + '>)' : '')
-					);
+				if (!el || el.type !== 'element' || el.name !== tok.name) {
+					throw new Error(el && el.name
+						? t('Mismatched closing tag </{0}> (expected </{1}>)', tok.name, el.name)
+						: t('Mismatched closing tag </{0}>', tok.name));
 				}
-				el.rawClose = t.raw;
+				el.rawClose = tok.raw;
 				break;
 			}
 			default:
 				// text / cdata / comment / pi
-				parent.children.push({ type: t.type, raw: t.raw });
+				parent.children.push({ type: tok.type, raw: tok.raw });
 		}
 	}
 	if (stack.length !== 1) {
-		throw new Error('Unclosed element: ' + (stack[stack.length - 1].name || '?'));
+		throw new Error(t('Unclosed element: {0}', stack[stack.length - 1].name || '?'));
 	}
 	return root;
 }
@@ -261,7 +277,7 @@ function stripQuotes(s) {
  */
 function escapeGdlStr(s) {
 	s = String(s);
-	if (s.indexOf(']]>') !== -1) throw new Error('Der Text darf die Zeichenfolge „]]>" nicht enthalten.');
+	if (s.indexOf(']]>') !== -1) throw new Error(t('The text must not contain the sequence "]]>".'));
 	return s.replace(/"/g, '""');
 }
 /** Umkehrung von escapeGdlStr für die Anzeige. */
@@ -372,7 +388,7 @@ function makeEmptyElement(el) {
 /** Setzt den Wert (<Value>) eines Parameter-Knotens (roh, ohne Typformatierung). */
 function setValue(paramNode, newValue) {
 	const valEl = childElement(paramNode, 'Value');
-	if (!valEl) throw new Error('Parameter hat kein <Value>: ' + (paramNode.name || '?'));
+	if (!valEl) throw new Error(t('Parameter has no <Value>: {0}', paramNode.name || '?'));
 	setInner(valEl, String(newValue));
 }
 
@@ -390,10 +406,10 @@ function normalizeNumber(type, text) {
 	const intOnly = type === 'Integer' || valueKindOf(type) === 'index';
 	if (intOnly) {
 		if (!/^-?\d+$/.test(s)) {
-			throw new Error('„' + text + '" ist keine ganze Zahl. ' + type + ' erlaubt nur Ganzzahlen.');
+			throw new Error(t('"{0}" is not a whole number. {1} allows integers only.', text, type));
 		}
 	} else if (!/^-?(?:\d+\.?\d*|\.\d+)$/.test(s)) {
-		throw new Error('„' + text + '" ist keine gültige Zahl (erlaubt: Ziffern und ein Dezimaltrenner).');
+		throw new Error(t('"{0}" is not a valid number (allowed: digits and one decimal separator).', text));
 	}
 	return s;
 }
@@ -405,7 +421,7 @@ function normalizeNumber(type, text) {
  */
 function setValueByType(paramNode, type, text) {
 	const valEl = childElement(paramNode, 'Value');
-	if (!valEl) throw new Error('Parameter hat kein <Value>: ' + (paramNode.name || '?'));
+	if (!valEl) throw new Error(t('Parameter has no <Value>: {0}', paramNode.name || '?'));
 	const kind = valueKindOf(type);
 	// Dictionary: <Value> ist ein Container (leer <Value/> oder verschachtelte
 	// Einträge). Ein skalarer Text (z.B. "0") wäre schema-ungültig und lässt den
@@ -428,7 +444,7 @@ function setValueByType(paramNode, type, text) {
  */
 function setDescription(paramNode, text) {
 	const descEl = childElement(paramNode, 'Description');
-	if (!descEl) throw new Error('Parameter hat kein <Description>');
+	if (!descEl) throw new Error(t('Parameter has no <Description>'));
 	setInner(descEl, '<![CDATA["' + escapeGdlStr(text) + '"]]>');
 }
 
@@ -496,7 +512,7 @@ function removeElementWithWs(parent, el) {
  * Reihenfolge und alle übrigen Flags.
  */
 function setFlag(node, flagTag, on) {
-	if (!FLAG_TAGS.includes(flagTag)) throw new Error('Unbekanntes Flag: ' + flagTag);
+	if (!FLAG_TAGS.includes(flagTag)) throw new Error(t('Unknown flag: {0}', flagTag));
 	let flagsEl = childElement(node, 'Flags');
 
 	if (on) {
@@ -622,7 +638,7 @@ function paramIndentWs(blocks) {
 /** Reihenfolge der Parameter anhand der Namensliste neu setzen (Blöcke wandern mit). */
 function reorderParams(doc, orderedNames) {
 	const paramsEl = findParametersElement(doc);
-	if (!paramsEl) throw new Error('Kein <Parameters>-Element');
+	if (!paramsEl) throw new Error(t('No <Parameters> element'));
 	const { blocks, trailing } = splitBlocks(paramsEl);
 	const byName = new Map(blocks.map((b) => [getAttr(b.el.rawOpen, 'Name'), b]));
 	const ordered = orderedNames.map((n) => byName.get(n)).filter(Boolean);
@@ -665,9 +681,9 @@ function deleteParams(doc, names) {
  */
 function duplicateParam(doc, name, newName) {
 	const paramsEl = findParametersElement(doc);
-	if (!paramsEl) throw new Error('Kein <Parameters>-Element');
-	if (!isValidName(newName)) throw new Error('Ungültiger Name: ' + newName);
-	if (nameExists(doc, newName, null)) throw new Error('Parametername existiert bereits: ' + newName);
+	if (!paramsEl) throw new Error(t('No <Parameters> element'));
+	if (!isValidName(newName)) throw new Error(t('Invalid name: {0}', newName));
+	if (nameExists(doc, newName, null)) throw new Error(t('Parameter name already exists: {0}', newName));
 	const { blocks, trailing } = splitBlocks(paramsEl);
 	const i = blocks.findIndex((b) => getAttr(b.el.rawOpen, 'Name') === name);
 	if (i < 0) return null;
@@ -734,7 +750,7 @@ function parseParamFragments(text) {
  */
 function insertParams(doc, els, afterName) {
 	const paramsEl = findParametersElement(doc);
-	if (!paramsEl) throw new Error('Kein <Parameters>-Element');
+	if (!paramsEl) throw new Error(t('No <Parameters> element'));
 	const { blocks, trailing } = splitBlocks(paramsEl);
 	const indent = paramIndentWs(blocks);
 	const taken = new Set(blocks.map((b) => (getAttr(b.el.rawOpen, 'Name') || '').toLowerCase()));
@@ -769,9 +785,9 @@ function insertParams(doc, els, afterName) {
  */
 function addParam(doc, { type, name, afterName }) {
 	const paramsEl = findParametersElement(doc);
-	if (!paramsEl) throw new Error('Kein <Parameters>-Element');
+	if (!paramsEl) throw new Error(t('No <Parameters> element'));
 	if (childElements(paramsEl).some((e) => (getAttr(e.rawOpen, 'Name') || '').toLowerCase() === name.toLowerCase())) {
-		throw new Error('Parametername existiert bereits: ' + name);
+		throw new Error(t('Parameter name already exists: {0}', name));
 	}
 	const { blocks, trailing } = splitBlocks(paramsEl);
 	const indent = paramIndentWs(blocks);          // z.B. "\n\t\t"
@@ -809,14 +825,14 @@ function addParam(doc, { type, name, afterName }) {
  *  Zahlen/Indizes normalisiert (Komma→Punkt, validiert) wie skalare Werte. */
 function setArrayCell(paramNode, row, col, text) {
 	const arrEl = childElement(paramNode, 'ArrayValues');
-	if (!arrEl) throw new Error('Parameter hat kein <ArrayValues>');
+	if (!arrEl) throw new Error(t('Parameter has no <ArrayValues>'));
 	const kind = valueKindOf(paramNode.name);
 	const target = childElements(arrEl).find((c) =>
 		c.name === 'AVal' &&
 		parseInt(getAttr(c.rawOpen, 'Row') || '0', 10) === row &&
 		parseInt(getAttr(c.rawOpen, 'Column') || '0', 10) === col
 	);
-	if (!target) throw new Error('Array-Zelle nicht gefunden: ' + row + '/' + col);
+	if (!target) throw new Error(t('Array cell not found: {0}/{1}', row, col));
 	if (kind === 'string') setInner(target, '<![CDATA["' + escapeGdlStr(text) + '"]]>');
 	else if (kind === 'number' || kind === 'index') setInner(target, normalizeNumber(paramNode.name, text));
 	else setInner(target, String(text));
@@ -897,7 +913,7 @@ function appendBeforeClose(parent, ws, el) {
 /** Hängt eine Zeile am Ende an (chirurgisch — vorhandene Zellen unberührt). */
 function addArrayRow(node) {
 	const arrEl = childElement(node, 'ArrayValues');
-	if (!arrEl) throw new Error('Kein <ArrayValues>');
+	if (!arrEl) throw new Error(t('Parameter has no <ArrayValues>'));
 	const first = arrDim(arrEl, 'First'), second = arrDim(arrEl, 'Second');
 	const { aval } = arrayIndents(node, arrEl);
 	const cols = second > 0 ? second : 1;
@@ -909,9 +925,9 @@ function addArrayRow(node) {
 /** Entfernt eine bestimmte Zeile (1-basiert) und nummeriert höhere Zeilen nach. */
 function removeArrayRow(node, row) {
 	const arrEl = childElement(node, 'ArrayValues');
-	if (!arrEl) throw new Error('Kein <ArrayValues>');
+	if (!arrEl) throw new Error(t('Parameter has no <ArrayValues>'));
 	const first = arrDim(arrEl, 'First'), second = arrDim(arrEl, 'Second');
-	if (first <= 1) throw new Error('Die letzte Zeile kann nicht entfernt werden.');
+	if (first <= 1) throw new Error(t('The last row cannot be removed.'));
 	for (const av of childElements(arrEl).filter((a) => a.name === 'AVal')) {
 		const r = parseInt(getAttr(av.rawOpen, 'Row') || '0', 10);
 		if (r === row) removeElementWithWs(arrEl, av);
@@ -923,7 +939,7 @@ function removeArrayRow(node, row) {
 /** Hängt eine Spalte am Ende an. Bei 1D wird das Array zuerst in 2D umgewandelt. */
 function addArrayCol(node) {
 	const arrEl = childElement(node, 'ArrayValues');
-	if (!arrEl) throw new Error('Kein <ArrayValues>');
+	if (!arrEl) throw new Error(t('Parameter has no <ArrayValues>'));
 	const second = arrDim(arrEl, 'Second');
 	if (second <= 0) {
 		// 1D → 2D: jede vorhandene Zelle wird Spalte 1, dahinter eine neue Spalte 2.
@@ -949,9 +965,9 @@ function addArrayCol(node) {
 /** Entfernt eine bestimmte Spalte (2D); bei nur noch 1 Spalte → 1D. */
 function removeArrayCol(node, col) {
 	const arrEl = childElement(node, 'ArrayValues');
-	if (!arrEl) throw new Error('Kein <ArrayValues>');
+	if (!arrEl) throw new Error(t('Parameter has no <ArrayValues>'));
 	const second = arrDim(arrEl, 'Second');
-	if (second <= 1) throw new Error('Spalte kann nicht entfernt werden (kein 2D-Array).');
+	if (second <= 1) throw new Error(t('Column cannot be removed (not a 2D array).'));
 	const newSecond = second - 1 <= 1 ? 0 : second - 1;
 	for (const av of childElements(arrEl).filter((a) => a.name === 'AVal')) {
 		const c = parseInt(getAttr(av.rawOpen, 'Column') || '0', 10);
@@ -985,7 +1001,7 @@ function removeArray(node) {
 }
 
 module.exports = {
-	parse, serialize, tagName, BOM,
+	parse, serialize, tagName, BOM, setL10n,
 	VALUE_TYPES, FLAG_TAGS, valueKindOf, getParameters, findParametersElement,
 	childElement, childElements, getAttr, innerRaw, stripCdata, stripQuotes, readArray,
 	escapeGdlStr, unescapeGdlStr, normalizeNumber,

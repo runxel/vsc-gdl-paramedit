@@ -6,6 +6,19 @@
 (function () {
 	const vscode = acquireVsCodeApi();
 
+	// ── Übersetzung ────────────────────────────────────────────────────────
+	// Im Webview gibt es kein vscode.l10n. Der Extension-Host reicht das
+	// Wörterbuch der aktiven Sprache als window.__l10n herein; Schlüssel sind
+	// die englischen Quelltexte. Fehlt ein Eintrag (Englisch, oder noch nicht
+	// übersetzt), bleibt der Quelltext stehen. {0}, {1}, … werden durch die
+	// Argumente ersetzt — wie bei vscode.l10n.t im Host.
+	const L10N = window.__l10n || {};
+	function t(message, ...args) {
+		const s = typeof L10N[message] === 'string' ? L10N[message] : message;
+		if (!args.length) return s;
+		return s.replace(/\{(\d+)\}/g, (m, i) => (args[i] !== undefined ? String(args[i]) : m));
+	}
+
 	const listEl = document.getElementById('list');
 	const filterEl = document.getElementById('filter');
 	const filterClearEl = document.getElementById('filterClear');
@@ -39,10 +52,10 @@
 		'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
 		'<path d="M3.5 3.5v9"/><path d="M3.5 8h8.5"/><path d="M9 4.5 12.5 8 9 11.5"/></svg>';
 	const FLAG_DEFS = [
-		{ key: 'hidden', svg: SVG_HIDDEN, title: 'Versteckt (ParFlg_Hidden)', flag: 'ParFlg_Hidden' },
-		{ key: 'child', svg: SVG_CHILD, title: 'Untergeordnet/eingerückt (ParFlg_Child)', flag: 'ParFlg_Child' },
-		{ key: 'bold', label: 'B', title: 'Fett (ParFlg_BoldName)', flag: 'ParFlg_BoldName' },
-		{ key: 'unique', label: 'U', title: 'Eindeutig (ParFlg_Unique)', flag: 'ParFlg_Unique' },
+		{ key: 'hidden', svg: SVG_HIDDEN, title: t('Hidden (ParFlg_Hidden)'), flag: 'ParFlg_Hidden' },
+		{ key: 'child', svg: SVG_CHILD, title: t('Child/indented (ParFlg_Child)'), flag: 'ParFlg_Child' },
+		{ key: 'bold', label: 'B', title: t('Bold (ParFlg_BoldName)'), flag: 'ParFlg_BoldName' },
+		{ key: 'unique', label: 'U', title: t('Unique (ParFlg_Unique)'), flag: 'ParFlg_Unique' },
 	];
 
 	let params = [];
@@ -81,9 +94,8 @@
 		return { ok: re.test(s), value: s, intOnly };
 	}
 
-	const NAME_RULE = 'Erlaubt: Buchstaben, Ziffern und _ — Beginn mit Buchstabe oder _, ' +
-		'keine Leerzeichen, keine Umlaute/ß, keine sonstigen Sonderzeichen, maximal ' +
-		MAX_NAME_LEN + ' Zeichen.';
+	const NAME_RULE = t('Allowed: letters, digits and _ — must start with a letter or _, no spaces, ' +
+		'no accented characters, no other special characters, at most {0} characters.', MAX_NAME_LEN);
 
 	// Verdrahtet ein Namens-Eingabefeld: Live-Markierung ungültiger Zeichen +
 	// Prüfung beim Verlassen (ungültig → Hinweis, Feld auf Wahrheit zurück).
@@ -94,7 +106,7 @@
 		commitOnChange(input, () => {
 			const v = input.value.trim();
 			if (!isValidNameC(v)) {
-				showNotice('Ungültiger Name „' + v + '". ' + NAME_RULE);
+				showNotice(t('Invalid name "{0}". {1}', v, NAME_RULE));
 				input.value = p.name || '';
 				input.classList.remove('invalid');
 				return;
@@ -110,7 +122,7 @@
 		if (msg.type === 'render') {
 			if (msg.error) {
 				errorEl.hidden = false;
-				errorEl.textContent = 'Parse-Fehler: ' + msg.error;
+				errorEl.textContent = t('Parse error: {0}', msg.error);
 				return;
 			}
 			errorEl.hidden = true;
@@ -178,9 +190,9 @@
 	//    Stylesheet. Gespeichert wird über den Extension-Host (globalState),
 	//    damit die Breiten für alle Dateien und Fenster gelten. ──
 	const COLS = [
-		{ label: 'Name', widthVar: '--col-name', minVar: '--min-name' },
-		{ label: 'Typ', widthVar: '--col-type', minVar: '--min-type' },
-		{ label: 'Beschreibung', widthVar: '--col-desc', minVar: '--min-desc' },
+		{ label: t('Name'), widthVar: '--col-name', minVar: '--min-name' },
+		{ label: t('Type'), widthVar: '--col-type', minVar: '--min-type' },
+		{ label: t('Description'), widthVar: '--col-desc', minVar: '--min-desc' },
 	];
 
 	// Unsichtbarer Mess-Span: ermittelt die Breite des längsten Namens in der
@@ -228,10 +240,10 @@
 		// absolut darüber, damit es die Breite nicht beeinflusst.
 		const flagsHead = el('span', 'flags-head');
 		flagsHead.appendChild(renderFlags({}, []));
-		flagsHead.appendChild(el('span', 'flags-head-label', 'Darstellung'));
+		flagsHead.appendChild(el('span', 'flags-head-label', t('Display')));
 		head.appendChild(flagsHead);
 		for (const c of COLS) head.appendChild(headCell(c));
-		head.appendChild(el('span', 'col-label', 'Wert')); // Rest-Spalte, ohne Griff
+		head.appendChild(el('span', 'col-label', t('Value'))); // Rest-Spalte, ohne Griff
 
 		// Gemessene Breite der Flags-Spalte (+6px margin) → fließt in die
 		// Mindestbreite der Zeilen ein (ab der horizontal gescrollt wird).
@@ -249,7 +261,7 @@
 	function headCell(c) {
 		const cell = el('span', 'col-label', c.label);
 		const grip = el('span', 'col-grip');
-		grip.title = 'Ziehen: Spaltenbreite ändern — Doppelklick: zurücksetzen';
+		grip.title = t('Drag: change column width — double-click: reset');
 		grip.addEventListener('pointerdown', (e) => {
 			e.preventDefault();
 			grip.setPointerCapture(e.pointerId);
@@ -317,8 +329,9 @@
 	}
 
 	function updateCount() {
-		countEl.textContent = lastShown + ' / ' + params.length + ' Parameter' +
-			(selected.size ? ' · ' + selected.size + ' ausgewählt' : '');
+		countEl.textContent = selected.size
+			? t('{0} / {1} parameters · {2} selected', lastShown, params.length, selected.size)
+			: t('{0} / {1} parameters', lastShown, params.length);
 	}
 
 	function matches(p, q) {
@@ -416,7 +429,7 @@
 		name.type = 'text';
 		name.className = 'pname';
 		name.value = p.name || '';
-		name.title = 'Gruppen-Name (intern, eindeutig)';
+		name.title = t('Group name (internal, unique)');
 		wireNameInput(name, p);
 		row.appendChild(name);
 
@@ -427,11 +440,11 @@
 		cap.type = 'text';
 		cap.className = 'title-text';
 		cap.value = p.description != null ? p.description : '';
-		cap.placeholder = 'Gruppen-Überschrift';
+		cap.placeholder = t('Group heading');
 		commitOnChange(cap, () => { send({ field: 'description', name: p.name, value: cap.value }); flash(cap); });
 		main.appendChild(cap);
 		const n = shut ? groupMembers(p.name).length : 0;
-		if (n) main.appendChild(el('span', 'group-count muted', n + ' ausgeblendet'));
+		if (n) main.appendChild(el('span', 'group-count muted', t('{0} hidden', n)));
 		row.appendChild(main);
 
 		// Doppelklick auf die Zeile klappt die Gruppe ebenfalls auf/zu.
@@ -455,12 +468,12 @@
 		name.type = 'text';
 		name.className = 'pname';
 		name.value = p.name || '';
-		name.title = 'Trennbalken-Name (intern, eindeutig)';
+		name.title = t('Separator name (internal, unique)');
 		wireNameInput(name, p);
 		row.appendChild(name);
 
 		const line = el('span', 'separator-line');
-		line.title = 'Trennbalken (ohne Überschrift)';
+		line.title = t('Separator bar (without heading)');
 		row.appendChild(line);
 
 		wireRowSelection(row, p);
@@ -471,7 +484,7 @@
 
 	function renderParam(p) {
 		const row = el('div', 'row' + (p.child ? ' child' : '') + (p.hidden ? ' hidden' : '') + (p.fix ? ' fix' : '') + (p.bold ? ' bold' : ''));
-		if (p.fix) row.title = 'Fix — vom Subtype vorgegeben';
+		if (p.fix) row.title = t('Fix — dictated by the subtype');
 
 		row.appendChild(renderControls(p));
 
@@ -489,10 +502,11 @@
 		// Typ-Dropdown — zwischen Name und Beschreibung
 		const sel = document.createElement('select');
 		sel.className = 'type-select';
-		for (const t of TYPES) {
+		// Laufvariable heißt `ty` (nicht `t`) — `t` ist der Übersetzer.
+		for (const ty of TYPES) {
 			const o = document.createElement('option');
-			o.value = t; o.textContent = t;
-			if (t === p.type) o.selected = true;
+			o.value = ty; o.textContent = ty;
+			if (ty === p.type) o.selected = true;
 			sel.appendChild(o);
 		}
 		if (!TYPES.includes(p.type)) { // unbekannter Typ trotzdem zeigen
@@ -508,7 +522,7 @@
 		desc.type = 'text';
 		desc.className = 'desc';
 		desc.value = p.description != null ? p.description : '';
-		desc.placeholder = 'Beschreibung';
+		desc.placeholder = t('Description');
 		commitOnChange(desc, () => { send({ field: 'description', name: p.name, value: desc.value }); flash(desc); });
 		row.appendChild(desc);
 
@@ -528,8 +542,8 @@
 		if (p.isTitle) c.appendChild(twistyBtn(p));
 		const handle = el('span', 'drag-handle', '⠿');
 		handle.title = p.isTitle
-			? 'Ziehen zum Verschieben — zugeklappt wandert die ganze Gruppe mit'
-			: 'Ziehen zum Verschieben';
+			? t('Drag to move — when collapsed the whole group moves along')
+			: t('Drag to move');
 		handle.draggable = true;
 		handle.addEventListener('dragstart', (e) => {
 			// Gehört die Zeile zur Mehrfachauswahl, wandert die GANZE Auswahl mit;
@@ -548,7 +562,7 @@
 			for (const r of rowByName.values()) r.classList.remove('dragging');
 		});
 		c.appendChild(handle);
-		c.appendChild(iconBtn('＋', 'Neuen Parameter unter diesem einfügen', () => {
+		c.appendChild(iconBtn('＋', t('Insert a new parameter below this one'), () => {
 			openGroup(p.name); // sonst wäre der neue Parameter sofort wieder verborgen
 			send({ field: 'add', paramType: 'Length', newName: makeUniqueName(), afterName: p.name });
 		}));
@@ -556,7 +570,7 @@
 		// sie bekommen erst gar keinen Papierkorb.
 		if (!p.fix) {
 			c.appendChild(iconBtn('🗑',
-				'Löschen — bei Mehrfachauswahl alle ausgewählten (rückgängig mit Cmd+Z)',
+				t('Delete — with a multi-selection all selected rows (undo with Cmd+Z)'),
 				() => requestDelete(selected.has(p.name) && selected.size > 1 ? orderedSelection() : [p.name])));
 		}
 		return c;
@@ -570,13 +584,13 @@
 		const b = el('button', 'twisty', shut ? '▸' : '▾');
 		if (!filterActive() && !groupMembers(p.name).length) {
 			b.disabled = true;
-			b.title = 'Leere Gruppe — dazu gehören nur die direkt folgenden Parameter ' +
-				'mit dem Flag „Untergeordnet" (ParFlg_Child).';
+			b.title = t('Empty group — it only contains the directly following parameters ' +
+				'carrying the "Child" flag (ParFlg_Child).');
 		} else if (filterActive()) {
 			b.disabled = true;
-			b.title = 'Beim Filtern sind alle Gruppen aufgeklappt';
+			b.title = t('While filtering, all groups are expanded');
 		} else {
-			b.title = shut ? 'Gruppe aufklappen' : 'Gruppe zuklappen (Inhalt wandert beim Ziehen mit)';
+			b.title = shut ? t('Expand group') : t('Collapse group (content moves along when dragging)');
 			b.addEventListener('click', () => toggleGroup(p.name));
 		}
 		return b;
@@ -588,15 +602,16 @@
 		const fixNames = new Set(params.filter((x) => x.fix).map((x) => x.name));
 		const deletable = names.filter((n) => !fixNames.has(n));
 		if (deletable.length !== names.length) {
-			showNotice('Fixe Parameter (blau, vom Subtype vorgegeben) können nicht gelöscht werden' +
-				(deletable.length ? ' — sie bleiben erhalten.' : '.'));
+			showNotice(deletable.length
+				? t('Fix parameters (blue, dictated by the subtype) cannot be deleted — they are kept.')
+				: t('Fix parameters (blue, dictated by the subtype) cannot be deleted.'));
 		}
 		if (!deletable.length) return;
 		send({ field: 'delete', names: deletable });
 	}
 
 	function makeUniqueName(base) {
-		base = base || 'neuerParameter';
+		base = base || t('newParameter');
 		const existing = new Set(params.map((p) => (p.name || '').toLowerCase()));
 		let n = 1, name;
 		do { name = base + n++; } while (existing.has(name.toLowerCase()));
@@ -797,7 +812,7 @@
 		const wrap = el('span', 'value');
 		if (p.isArray) {
 			const dims = p.array.second > 0 ? p.array.first + '×' + p.array.second : String(p.array.first);
-			const btn = el('button', 'array-toggle', (expanded.has(p.name) ? '▾ ' : '▸ ') + 'Array [' + dims + ']');
+			const btn = el('button', 'array-toggle', (expanded.has(p.name) ? '▾ ' : '▸ ') + t('Array [{0}]', dims));
 			btn.addEventListener('click', () => {
 				if (expanded.has(p.name)) expanded.delete(p.name); else expanded.add(p.name);
 				render();
@@ -818,7 +833,7 @@
 			// Dictionary: <Value> ist ein Container, nicht skalar editierbar.
 			// Hier nur anzeigen (Einträge werden im Editor derzeit nicht bearbeitet).
 			const badge = el('span', 'dict-badge', 'Dictionary');
-			badge.title = 'Dictionary-Inhalt kann nicht in der Parameterliste festgelegt werden.';
+			badge.title = t('Dictionary content cannot be set in the parameter list.');
 			wrap.appendChild(badge);
 			return wrap;
 		}
@@ -836,7 +851,9 @@
 				const r = normNumberC(p.type, inp.value);
 				if (!r.ok) {
 					inp.classList.add('invalid');
-					showNotice('„' + inp.value + '" ist keine ' + (r.intOnly ? 'ganze Zahl' : 'gültige Zahl') + '. ' + p.type + '-Wert unverändert.');
+					showNotice(r.intOnly
+						? t('"{0}" is not a whole number. {1} value unchanged.', inp.value, p.type)
+						: t('"{0}" is not a valid number. {1} value unchanged.', inp.value, p.type));
 					inp.value = p.valueText != null ? p.valueText : '';
 					return;
 				}
@@ -857,7 +874,7 @@
 
 	// „In Array umwandeln"-Button (⊞) — für alle wertetragenden Typen gleich.
 	function makeArrayBtn(p) {
-		const b = iconBtn('⊞', 'In Array umwandeln', () => {
+		const b = iconBtn('⊞', t('Convert to array'), () => {
 			expanded.add(p.name);
 			send({ field: 'arrayCreate', name: p.name, rows: 1, cols: 0 });
 		});
@@ -904,10 +921,10 @@
 		// verschiebt eine Textänderung (z.B. „(1D)" → „2 × 3") die Buttons
 		// unter dem Mauszeiger.
 		const bar = el('div', 'array-bar');
-		bar.appendChild(txtBtn('+ Zeile', 'Zeile am Ende anhängen', () => send({ field: 'arrayAddRow', name: p.name })));
-		bar.appendChild(txtBtn('+ Spalte', is2D ? 'Spalte anhängen' : 'In 2D umwandeln (Spalte hinzufügen)', () => send({ field: 'arrayAddCol', name: p.name })));
-		bar.appendChild(txtBtn('Kein Array', 'In skalaren Wert zurückwandeln', () => send({ field: 'arrayRemove', name: p.name })));
-		bar.appendChild(el('span', 'muted', is2D ? (a.first + ' × ' + a.second) : (a.first + ' Zeilen (1D)')));
+		bar.appendChild(txtBtn(t('+ Row'), t('Append a row at the end'), () => send({ field: 'arrayAddRow', name: p.name })));
+		bar.appendChild(txtBtn(t('+ Column'), is2D ? t('Append a column') : t('Convert to 2D (add a column)'), () => send({ field: 'arrayAddCol', name: p.name })));
+		bar.appendChild(txtBtn(t('No array'), t('Convert back to a scalar value'), () => send({ field: 'arrayRemove', name: p.name })));
+		bar.appendChild(el('span', 'muted', is2D ? (a.first + ' × ' + a.second) : t('{0} rows (1D)', a.first)));
 		panel.appendChild(bar);
 
 		const table = el('table', 'array-table');
@@ -916,8 +933,8 @@
 			tr.appendChild(el('td', 'array-rowhead', ''));
 			for (let c = 1; c <= cols; c++) {
 				const td = el('td', 'array-colhead');
-				td.appendChild(el('span', null, 'Sp ' + c + ' '));
-				td.appendChild(iconBtn('✕', 'Spalte ' + c + ' löschen', () => send({ field: 'arrayDelCol', name: p.name, col: c })));
+				td.appendChild(el('span', null, t('Col {0}', c) + ' '));
+				td.appendChild(iconBtn('✕', t('Delete column {0}', c), () => send({ field: 'arrayDelCol', name: p.name, col: c })));
 				tr.appendChild(td);
 			}
 			table.appendChild(tr);
@@ -926,7 +943,7 @@
 			const tr = document.createElement('tr');
 			const head = el('td', 'array-rowhead');
 			head.appendChild(el('span', null, String(r) + ' '));
-			head.appendChild(iconBtn('✕', 'Zeile ' + r + ' löschen', () => send({ field: 'arrayDelRow', name: p.name, row: r })));
+			head.appendChild(iconBtn('✕', t('Delete row {0}', r), () => send({ field: 'arrayDelRow', name: p.name, row: r })));
 			tr.appendChild(head);
 			for (let c = 1; c <= cols; c++) {
 				const sendCol = is2D ? c : 0; // setArrayCell erwartet 0 bei 1D
@@ -954,7 +971,9 @@
 						const rN = normNumberC(p.type, inp.value);
 						if (!rN.ok) {
 							inp.classList.add('invalid');
-							showNotice('„' + inp.value + '" ist keine ' + (rN.intOnly ? 'ganze Zahl' : 'gültige Zahl') + '. Zelle unverändert.');
+							showNotice(rN.intOnly
+								? t('"{0}" is not a whole number. Cell unchanged.', inp.value)
+								: t('"{0}" is not a valid number. Cell unchanged.', inp.value));
 							inp.value = v != null ? v : '';
 							return;
 						}
@@ -983,12 +1002,12 @@
 
 	function addGroup() {
 		const afterName = params.length ? params[params.length - 1].name : null;
-		send({ field: 'add', paramType: 'Title', newName: makeUniqueName('Gruppe'), afterName });
+		send({ field: 'add', paramType: 'Title', newName: makeUniqueName(t('Group')), afterName });
 	}
 
 	function addSeparator() {
 		const afterName = params.length ? params[params.length - 1].name : null;
-		send({ field: 'add', paramType: 'Separator', newName: makeUniqueName('Trennlinie'), afterName });
+		send({ field: 'add', paramType: 'Separator', newName: makeUniqueName(t('Separator')), afterName });
 	}
 
 	// Sendet erst bei Verlassen/Enter — nicht pro Tastendruck. Solange etwas

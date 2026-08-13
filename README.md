@@ -35,6 +35,12 @@ Using "Reopen Editor With… → Text Editor" you can show the actual file conte
 - collapsible groups: a title plus the "child"-flagged parameters below it — dragging a collapsed group moves its whole content
 - copy & pasting between different .xml files
 - sub-editor for array fields (1D & 2D): edit cells, add/remove rows/columns
+- localized UI: English and German, following the VSCode display language
+
+## Translating
+
+Source strings are English. A translation is one file, `l10n/bundle.l10n.<lang>.json`, mapping the English source string to the translated one — it covers the extension host *and* the webview (the host hands the whole bundle to the webview at render time).
+The manifest (extension name, command titles) is translated separately in `package.nls.<lang>.json`. Untranslated strings fall back to English, so a partial bundle is fine.
 
 ## Build
-To build a new version use `npx @vscode/vsce package -o dist/gdl-parameter-editor-<ver>.vsix`.
+To build a new version use `npx @vscode/vsce package -o dist/`.
