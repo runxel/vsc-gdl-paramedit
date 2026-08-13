@@ -174,16 +174,71 @@ class ParamEditorProvider {
 			if (document.getText() === lastWritten) return;
 			render();
 		});
-		panel.onDidDispose(() => {
-			changeSub.dispose();
-			this.selections.delete(document.uri.toString());
-			if (this.activeDocument === document) this.activeDocument = null;
-		});
 
 		// Felder, nach denen die Liste neu gerendert werden muss (Identität/Optik
 		// ändert sich). Value/Description nicht — das Eingabefeld zeigt es bereits.
 		const RERENDER = ['move', 'reorder', 'add', 'delete', 'duplicate', 'paste', 'type', 'name', 'flag',
 			'arrayAddRow', 'arrayDelRow', 'arrayAddCol', 'arrayDelCol', 'arrayCreate', 'arrayRemove'];
+
+		/** Einmalig neu rendern, sobald das laufende Speichern durch ist. */
+		const renderAfterSave = () => {
+			const sub = vscode.workspace.onDidSaveTextDocument((d) => {
+				if (d.uri.toString() !== document.uri.toString()) return;
+				sub.dispose();
+				render();
+			});
+			setTimeout(() => sub.dispose(), 5000); // Sicherheitsnetz, falls nie gespeichert wird
+		};
+
+		// Cmd+S nimmt dem Eingabefeld im Webview NICHT den Fokus: dessen
+		// 'change' — und damit die Änderung am Dokument — kommt erst beim
+		// Wegklicken, also erst NACH dem Speichern. Die Datei wäre dadurch sofort
+		// wieder „geändert" (Punkt im Tab) und müsste ein zweites Mal gespeichert
+		// werden. Deshalb vor dem Speichern beim Webview nachfragen und das
+		// Getippte als TextEdit in den Speichervorgang einhängen.
+		const flushPending = async () => {
+			const edits = await requestFlush(webview);
+			if (!edits.length) return [];
+			const oldText = document.getText();
+			const doc = P.parse(oldText);
+			let changed = false;
+			for (const m of edits) {
+				try {
+					if (await this.mutate(doc, m)) changed = true;
+				} catch (e) {
+					// Ungültige Eingabe (Name, Zahl): nicht übernehmen, aber auch
+					// das Speichern nicht blockieren.
+					webview.postMessage({ type: 'notice', message: String(e.message || e) });
+				}
+			}
+			if (!changed) return [];
+			const newText = P.serialize(doc);
+			if (newText === oldText) return [];
+			lastWritten = newText; // eigener Edit → kein Neu-Rendern (Fokus bleibt)
+			// Umbenennen & Co. ändern die Identität der Zeilen — das Webview muss
+			// die neue Wahrheit sehen, sonst zeigen seine Nachrichten ins Leere.
+			if (edits.some((m) => RERENDER.includes(m.field))) renderAfterSave();
+			return [vscode.TextEdit.replace(
+				new vscode.Range(document.positionAt(0), document.positionAt(oldText.length)),
+				newText
+			)];
+		};
+
+		const willSaveSub = vscode.workspace.onWillSaveTextDocument((e) => {
+			if (e.document.uri.toString() !== document.uri.toString()) return;
+			// Nur bei „echtem" Speichern und beim Verlassen des Editors. Bei
+			// files.autoSave: afterDelay würde sonst mitten im Tippen übernommen
+			// (halbe Zahlen, Hinweis-Spam) — dort genügt der 'change' beim Verlassen.
+			if (e.reason === vscode.TextDocumentSaveReason.AfterDelay) return;
+			e.waitUntil(flushPending());
+		});
+
+		panel.onDidDispose(() => {
+			changeSub.dispose();
+			willSaveSub.dispose();
+			this.selections.delete(document.uri.toString());
+			if (this.activeDocument === document) this.activeDocument = null;
+		});
 
 		webview.onDidReceiveMessage(async (msg) => {
 			if (msg.type === 'ready') {
@@ -212,27 +267,26 @@ class ParamEditorProvider {
 	}
 
 	/**
-	 * Wendet eine Änderung an und schreibt das (round-trip-sichere) Ergebnis als
-	 * ein WorkspaceEdit zurück. Gibt den neuen Text zurück (oder null).
+	 * Wendet eine Änderung auf den geparsten Baum an (schreibt noch nichts).
+	 * Wirft bei ungültigen Eingaben; liefert false, wenn nichts zu tun war.
 	 */
-	async applyEdit(document, msg) {
-		const doc = P.parse(document.getText());
+	async mutate(doc, msg) {
 		const findTarget = () => P.getParameters(doc).find((p) => p.name === msg.name);
 
 		switch (msg.field) {
-			case 'value': { const t = findTarget(); if (!t) return null; P.setValueByType(t.node, t.type, msg.value); break; }
-			case 'description': { const t = findTarget(); if (!t) return null; P.setDescription(t.node, msg.value); break; }
+			case 'value': { const t = findTarget(); if (!t) return false; P.setValueByType(t.node, t.type, msg.value); break; }
+			case 'description': { const t = findTarget(); if (!t) return false; P.setDescription(t.node, msg.value); break; }
 			case 'name': {
-				const t = findTarget(); if (!t) return null;
+				const t = findTarget(); if (!t) return false;
 				const nm = String(msg.value || '').trim();
 				if (!P.isValidName(nm)) throw new Error('Ungültiger Name „' + nm + '". Erlaubt: Buchstaben, Ziffern, Unterstrich (Beginn mit Buchstabe oder _), maximal ' + P.MAX_NAME_LENGTH + ' Zeichen.');
 				if (P.nameExists(doc, nm, t.node)) throw new Error('Der Name „' + nm + '" existiert bereits. Namen müssen eindeutig sein.');
 				P.setName(t.node, nm); break;
 			}
-			case 'type': { const t = findTarget(); if (!t) return null; P.setType(t.node, msg.value); break; }
+			case 'type': { const t = findTarget(); if (!t) return false; P.setType(t.node, msg.value); break; }
 			// 'fix' ist absichtlich KEIN Editier-Feld: <Fix/> wird vom Subtype des
 			// Objekts bestimmt und darf nie über den Editor gesetzt/entfernt werden.
-			case 'flag': { const t = findTarget(); if (!t) return null; P.setFlag(t.node, msg.flag, !!msg.value); break; }
+			case 'flag': { const t = findTarget(); if (!t) return false; P.setFlag(t.node, msg.flag, !!msg.value); break; }
 			case 'move': P.moveParam(doc, msg.name, msg.delta); break;
 			case 'reorder': P.reorderParams(doc, msg.names || []); break;
 			case 'delete': {
@@ -252,7 +306,7 @@ class ParamEditorProvider {
 				break;
 			}
 			case 'duplicate': {
-				const t = findTarget(); if (!t) return null;
+				const t = findTarget(); if (!t) return false;
 				// Namen sind eindeutig (case-insensitiv): "_new" anhängen,
 				// bei erneutem Duplizieren "_new2", "_new3", … Der Basisname wird
 				// bei Bedarf gekürzt, damit das 32-Zeichen-Limit eingehalten bleibt.
@@ -278,15 +332,25 @@ class ParamEditorProvider {
 				P.addParam(doc, { type: msg.paramType, name: nm, afterName: msg.afterName || null });
 				break;
 			}
-			case 'arraycell': { const t = findTarget(); if (!t) return null; P.setArrayCell(t.node, msg.row, msg.col, msg.value); break; }
-			case 'arrayAddRow': { const t = findTarget(); if (!t) return null; P.addArrayRow(t.node); break; }
-			case 'arrayDelRow': { const t = findTarget(); if (!t) return null; P.removeArrayRow(t.node, msg.row); break; }
-			case 'arrayAddCol': { const t = findTarget(); if (!t) return null; P.addArrayCol(t.node); break; }
-			case 'arrayDelCol': { const t = findTarget(); if (!t) return null; P.removeArrayCol(t.node, msg.col); break; }
-			case 'arrayCreate': { const t = findTarget(); if (!t) return null; P.createArray(t.node, msg.rows || 1, msg.cols || 0); break; }
-			case 'arrayRemove': { const t = findTarget(); if (!t) return null; P.removeArray(t.node); break; }
-			default: return null;
+			case 'arraycell': { const t = findTarget(); if (!t) return false; P.setArrayCell(t.node, msg.row, msg.col, msg.value); break; }
+			case 'arrayAddRow': { const t = findTarget(); if (!t) return false; P.addArrayRow(t.node); break; }
+			case 'arrayDelRow': { const t = findTarget(); if (!t) return false; P.removeArrayRow(t.node, msg.row); break; }
+			case 'arrayAddCol': { const t = findTarget(); if (!t) return false; P.addArrayCol(t.node); break; }
+			case 'arrayDelCol': { const t = findTarget(); if (!t) return false; P.removeArrayCol(t.node, msg.col); break; }
+			case 'arrayCreate': { const t = findTarget(); if (!t) return false; P.createArray(t.node, msg.rows || 1, msg.cols || 0); break; }
+			case 'arrayRemove': { const t = findTarget(); if (!t) return false; P.removeArray(t.node); break; }
+			default: return false;
 		}
+		return true;
+	}
+
+	/**
+	 * Wendet eine Änderung an und schreibt das (round-trip-sichere) Ergebnis als
+	 * ein WorkspaceEdit zurück. Gibt den neuen Text zurück (oder null).
+	 */
+	async applyEdit(document, msg) {
+		const doc = P.parse(document.getText());
+		if (!(await this.mutate(doc, msg))) return null;
 
 		const newText = P.serialize(doc);
 		if (newText === document.getText()) return null;
@@ -297,7 +361,12 @@ class ParamEditorProvider {
 			document.positionAt(document.getText().length)
 		);
 		edit.replace(document.uri, fullRange, newText);
-		await vscode.workspace.applyEdit(edit);
+		// Schlägt fehl, wenn das Dokument gerade gespeichert/verändert wird —
+		// dann darf das Webview nicht weiter den neuen Stand zeigen (der Fehler
+		// führt zu Hinweis + Neu-Rendern aus der Datei).
+		if (!(await vscode.workspace.applyEdit(edit))) {
+			throw new Error('Änderung konnte nicht angewendet werden — bitte erneut versuchen.');
+		}
 		return newText;
 	}
 
@@ -343,6 +412,38 @@ class ParamEditorProvider {
 </html>`;
 	}
 
+}
+
+/**
+ * Fragt das Webview nach Eingaben, die noch in einem Feld stehen (getippt, aber
+ * noch nicht übernommen — 'change' kommt erst beim Verlassen des Feldes).
+ * Antwortet es nicht rechtzeitig, wird ohne sie gespeichert: der Speichervorgang
+ * darf nie an einem hängenden Webview hängen bleiben.
+ */
+function requestFlush(webview, timeoutMs = 400) {
+	return new Promise((resolve) => {
+		let done = false;
+		let timer = null;
+		const finish = (edits) => {
+			if (done) return;
+			done = true;
+			if (timer) clearTimeout(timer);
+			sub.dispose();
+			resolve(edits);
+		};
+		const sub = webview.onDidReceiveMessage((msg) => {
+			if (msg && msg.type === 'flushed') finish(Array.isArray(msg.edits) ? msg.edits : []);
+		});
+		timer = setTimeout(() => finish([]), timeoutMs);
+		try {
+			webview.postMessage({ type: 'flush' }).then(
+				(ok) => { if (!ok) finish([]); },
+				() => finish([])
+			);
+		} catch (e) {
+			finish([]); // Webview schon geschlossen — dann eben ohne Nachfrage speichern
+		}
+	});
 }
 
 /** Reduziert einen Parameter auf ein serialisierbares View-DTO (ohne Baum-Knoten). */

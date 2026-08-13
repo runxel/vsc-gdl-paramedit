@@ -46,6 +46,15 @@
 	];
 
 	let params = [];
+	// Eingabefelder mit getipptem, noch nicht übernommenem Text. Übernommen wird
+	// normalerweise erst beim Verlassen des Feldes ('change') — beim Speichern
+	// per Cmd+S behält das Feld aber den Fokus. Ohne dieses Register landete das
+	// Getippte erst NACH dem Speichern im Dokument und die Datei wäre sofort
+	// wieder „geändert". Der Extension-Host fragt vor jedem Speichern per
+	// 'flush' nach (siehe flushPending()).
+	const pendingCommits = new Set();
+	// Ziel der Änderungen, solange eingesammelt wird (statt sofort zu senden).
+	let collecting = null;
 	let dragNames = null; // aktuell gezogene Parameter (Drag & Drop, ggf. Mehrfachauswahl)
 	const expanded = new Set(); // Namen der aufgeklappten Array-Parameter
 	// Zugeklappte Gruppen (Namen der Title-Zeilen). Überlebt ein Neuladen des
@@ -112,8 +121,24 @@
 		} else if (msg.type === 'cols') {
 			// Gespeicherte Spaltenbreiten vom Extension-Host (globalState).
 			applyCols(msg.cols || {});
+		} else if (msg.type === 'flush') {
+			// Der Host speichert gleich und will vorher wissen, was noch in den
+			// Eingabefeldern steht. Antwort MUSS kommen (auch leer), sonst wartet er.
+			vscode.postMessage({ type: 'flushed', edits: flushPending() });
 		}
 	});
+
+	// Übernimmt alle offenen Eingaben und liefert sie zurück, statt sie zu
+	// senden — der Host hängt sie in den laufenden Speichervorgang ein.
+	function flushPending() {
+		collecting = [];
+		for (const commit of [...pendingCommits]) {
+			try { commit(); } catch (e) { /* eine fehlerhafte Zeile darf das Speichern nicht aufhalten */ }
+		}
+		const edits = collecting;
+		collecting = null;
+		return edits;
+	}
 
 	function showNotice(text) {
 		noticeEl.hidden = false;
@@ -966,15 +991,30 @@
 		send({ field: 'add', paramType: 'Separator', newName: makeUniqueName('Trennlinie'), afterName });
 	}
 
-	// Sendet erst bei Verlassen/Enter — nicht pro Tastendruck.
+	// Sendet erst bei Verlassen/Enter — nicht pro Tastendruck. Solange etwas
+	// getippt, aber noch nicht übernommen ist, steht das Feld in pendingCommits
+	// (siehe oben) und wird spätestens beim Speichern übernommen.
 	function commitOnChange(input, fn) {
 		let dirty = false;
-		input.addEventListener('input', () => { dirty = true; });
-		input.addEventListener('change', () => { if (dirty) { dirty = false; fn(); } });
+		const commit = () => {
+			if (!dirty) return;
+			dirty = false;
+			pendingCommits.delete(commit);
+			// Feld inzwischen neu gerendert (nicht mehr im DOM): nichts senden,
+			// sonst ginge eine Änderung an einer Zeile los, die es so nicht mehr gibt.
+			if (!input.isConnected) return;
+			fn();
+		};
+		input.addEventListener('input', () => { dirty = true; pendingCommits.add(commit); });
+		input.addEventListener('change', commit);
 		input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
 	}
 
-	function send(payload) { vscode.postMessage(Object.assign({ type: 'edit' }, payload)); }
+	function send(payload) {
+		const msg = Object.assign({ type: 'edit' }, payload);
+		// Beim Einsammeln (Speichern) nicht sofort schicken — siehe flushPending().
+		if (collecting) collecting.push(msg); else vscode.postMessage(msg);
+	}
 
 	function flash(elm) { elm.classList.remove('saved'); void elm.offsetWidth; elm.classList.add('saved'); }
 
