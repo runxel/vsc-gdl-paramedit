@@ -598,7 +598,11 @@
 
 	// Löscht die genannten Parameter in EINEM Schritt (ein Undo) — fixe
 	// Parameter (blau) werden ausgefiltert und bleiben erhalten.
+	// Eine zugeklappte Gruppe wird mitsamt ihrem (nicht gerenderten) Inhalt
+	// gelöscht — genau wie sie auch als Ganzes gezogen wird; sonst blieben die
+	// verborgenen Zeilen unbeabsichtigt zurück.
 	function requestDelete(names) {
+		names = withGroupContent(names);
 		const fixNames = new Set(params.filter((x) => x.fix).map((x) => x.name));
 		const deletable = names.filter((n) => !fixNames.has(n));
 		if (deletable.length !== names.length) {
