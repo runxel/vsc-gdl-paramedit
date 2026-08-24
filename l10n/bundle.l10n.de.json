@@ -97,5 +97,7 @@
   "Parameter has no <ArrayValues>": "Parameter hat kein <ArrayValues>",
   "Array cell not found: {0}/{1}": "Array-Zelle nicht gefunden: {0}/{1}",
   "The last row cannot be removed.": "Die letzte Zeile kann nicht entfernt werden.",
-  "Column cannot be removed (not a 2D array).": "Spalte kann nicht entfernt werden (kein 2D-Array)."
+  "Column cannot be removed (not a 2D array).": "Spalte kann nicht entfernt werden (kein 2D-Array).",
+  "Fix parameters (blue, dictated by the subtype) cannot be renamed.": "Fixe Parameter (blau, vom Subtype vorgegeben) können nicht umbenannt werden.",
+  "Fix parameter — the name is dictated by the subtype and cannot be changed.": "Fixer Parameter — der Name ist vom Subtype vorgegeben und nicht änderbar."
 }

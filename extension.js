@@ -291,6 +291,11 @@ class ParamEditorProvider {
 			case 'description': { const target = findTarget(); if (!target) return false; P.setDescription(target.node, msg.value); break; }
 			case 'name': {
 				const target = findTarget(); if (!target) return false;
+				// Fixe Parameter (vom Subtype vorgegeben) dürfen nicht umbenannt
+				// werden — hier nochmals erzwungen, unabhängig vom Webview.
+				if (target.fix) {
+					throw new Error(t('Fix parameters (blue, dictated by the subtype) cannot be renamed.'));
+				}
 				const nm = String(msg.value || '').trim();
 				if (!P.isValidName(nm)) throw new Error(t('Invalid name "{0}". Allowed: letters, digits, underscore (starting with a letter or _), at most {1} characters.', nm, P.MAX_NAME_LENGTH));
 				if (P.nameExists(doc, nm, target.node)) throw new Error(t('The name "{0}" already exists. Names must be unique.', nm));

@@ -99,7 +99,16 @@
 
 	// Verdrahtet ein Namens-Eingabefeld: Live-Markierung ungültiger Zeichen +
 	// Prüfung beim Verlassen (ungültig → Hinweis, Feld auf Wahrheit zurück).
+	// Der Name eines fixen Parameters ist vom Subtype vorgegeben — wird er
+	// geändert, findet das GDL-Skript den Parameter nicht mehr. Das Feld bleibt
+	// deshalb nur lesbar (kein Commit-Handler); der Host lehnt es zusätzlich ab.
 	function wireNameInput(input, p) {
+		if (p.fix) {
+			input.readOnly = true;
+			input.tabIndex = -1;
+			input.title = t('Fix parameter — the name is dictated by the subtype and cannot be changed.');
+			return;
+		}
 		input.maxLength = MAX_NAME_LEN;
 		input.addEventListener('input', () =>
 			input.classList.toggle('invalid', input.value.trim() !== '' && !isValidNameC(input.value.trim())));
@@ -901,10 +910,15 @@
 			} else {
 				chip.title = f.title;
 				chip.addEventListener('click', () => {
+					// Bei Mehrfachauswahl gilt der Klick für die ganze Auswahl (wie Löschen);
+					// der angeklickte Chip gibt den Zielzustand für alle vor.
+					const names = flagTargets(
+						selected.has(p.name) && selected.size > 1 ? orderedSelection() : [p.name], f.key);
+					if (!names.length) return;
 					// „Untergeordnet" einschalten heißt: die Zeile fällt der Gruppe
 					// darüber zu — ist die zugeklappt, wäre sie sofort verschwunden.
-					if (f.key === 'child' && !active) openGroup(owningTitle(p.name));
-					send({ field: 'flag', name: p.name, flag: f.flag, value: !active });
+					if (f.key === 'child' && !active) for (const n of names) openGroup(owningTitle(n));
+					send({ field: 'flag', names, flag: f.flag, value: !active });
 				});
 			}
 			box.appendChild(chip);
