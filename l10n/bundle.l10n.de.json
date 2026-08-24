@@ -55,6 +55,8 @@
   "While filtering, all groups are expanded": "Beim Filtern sind alle Gruppen aufgeklappt",
   "Expand group": "Gruppe aufklappen",
   "Collapse group (content moves along when dragging)": "Gruppe zuklappen (Inhalt wandert beim Ziehen mit)",
+  "Titles and separators do not carry this flag — they are skipped.": "Titel und Trenner tragen dieses Flag nicht — sie werden übersprungen.",
+  "Titles and separators do not carry this flag.": "Titel und Trenner tragen dieses Flag nicht.",
   "Fix parameters (blue, dictated by the subtype) cannot be deleted — they are kept.": "Fixe Parameter (blau, vom Subtype vorgegeben) können nicht gelöscht werden — sie bleiben erhalten.",
   "newParameter": "neuerParameter",
   "Array [{0}]": "Array [{0}]",

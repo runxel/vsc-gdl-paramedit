@@ -304,7 +304,20 @@ class ParamEditorProvider {
 			case 'type': { const target = findTarget(); if (!target) return false; P.setType(target.node, msg.value); break; }
 			// 'fix' ist absichtlich KEIN Editier-Feld: <Fix/> wird vom Subtype des
 			// Objekts bestimmt und darf nie über den Editor gesetzt/entfernt werden.
-			case 'flag': { const target = findTarget(); if (!target) return false; P.setFlag(target.node, msg.flag, !!msg.value); break; }
+			case 'flag': {
+				// Ein Name oder eine Mehrfachauswahl — in einem Undo-Schritt.
+				// Trenner haben keine Flags, Titel nur ParFlg_Hidden; hier nochmals
+				// erzwungen, unabhängig vom Webview.
+				const all = P.getParameters(doc);
+				const wanted = msg.names && msg.names.length ? msg.names : [msg.name];
+				const targets = wanted
+					.map((n) => all.find((p) => p.name === n))
+					.filter((target) => target && !target.isSeparator
+						&& (!target.isTitle || msg.flag === 'ParFlg_Hidden'));
+				if (!targets.length) return false;
+				for (const target of targets) P.setFlag(target.node, msg.flag, !!msg.value);
+				break;
+			}
 			case 'move': P.moveParam(doc, msg.name, msg.delta); break;
 			case 'reorder': P.reorderParams(doc, msg.names || []); break;
 			case 'delete': {

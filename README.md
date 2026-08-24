@@ -14,7 +14,7 @@ See [Releases](https://github.com/runxel/vsc-gdl-paramedit/releases/latest).
 
 In VSCode: **"Extensions: Install from VSIX"**.
 
-## Ausprobieren (aus dem Quellcode)
+## Testing from source
 
 1. Clone the repo and open the folder in VSCode.
 2. Press **F5**.

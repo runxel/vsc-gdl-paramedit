@@ -623,6 +623,24 @@
 		send({ field: 'delete', names: deletable });
 	}
 
+	// Welche der genannten Zeilen kann das Flag überhaupt tragen? Trenner haben
+	// gar keine Flags, Titel nur „Verborgen" — sonst schriebe eine Mehrfach-
+	// auswahl Flags in Zeilen, die sie nicht anzeigen (und nicht zurücknehmen können).
+	function flagTargets(names, key) {
+		const byName = new Map(params.map((p) => [p.name, p]));
+		const usable = names.filter((n) => {
+			const p = byName.get(n);
+			if (!p || p.isSeparator) return false;
+			return p.isTitle ? key === 'hidden' : true;
+		});
+		if (usable.length !== names.length) {
+			showNotice(usable.length
+				? t('Titles and separators do not carry this flag — they are skipped.')
+				: t('Titles and separators do not carry this flag.'));
+		}
+		return usable;
+	}
+
 	function makeUniqueName(base) {
 		base = base || t('newParameter');
 		const existing = new Set(params.map((p) => (p.name || '').toLowerCase()));
